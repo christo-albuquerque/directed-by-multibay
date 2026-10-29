@@ -71,7 +71,8 @@ export class Chart {
     const ex = this.east.dot(dir);
     const sz = this.south.dot(dir);
     const l = Math.hypot(ex, sz);
-    if (l < 1e-9) return out.set(0, 0);
+    // Dead centre, or exactly opposite it (where the chart is singular: report the far edge).
+    if (l < 1e-9) return out.set(c > 0 ? 0 : theta * R, 0);
     return out.set((ex / l) * theta * R, (sz / l) * theta * R);
   }
 

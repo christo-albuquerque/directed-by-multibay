@@ -120,6 +120,8 @@ export class Line {
   private stations: Station[] = [];
   private items: BulkItem[] = [];
   private ex = new Map<number, Express>();
+  /** Runs already handed to the port: their visual is gone, so it must not be re-created. */
+  private dispatched = new Set<number>();
   private workers: Worker[] = [];
   private walkers: Walker[] = [];
   private spawnTimer = 2;
@@ -268,6 +270,7 @@ export class Line {
   resetRuns(): void {
     this.state = new FactoryState();
     this.state.lingerSeconds = 16;
+    this.dispatched.clear();
     for (const e of this.ex.values()) e.mode = 'reject';
   }
 
@@ -419,7 +422,7 @@ export class Line {
   private updateExpress(env: Env, speed: number): void {
     const len = this.express.length;
     for (const p of this.state.products) {
-      if (!this.ex.has(p.id) && p.status === 'moving') {
+      if (!this.ex.has(p.id) && p.status === 'moving' && !this.dispatched.has(p.id)) {
         // A real run is born inside the depot housing, like everything else.
         this.ex.set(p.id, { product: p, s: this.stations[0].sExpress, stage: 0, mode: 'inside', to: 0, t: 0, kind: 'crate' });
       }
@@ -484,7 +487,10 @@ export class Line {
         case 'loaded':
           // Hidden in the dock hood until the port's truck collects it.
           p.cap = 4.99;
-          if (e.collected || p.status === 'launching' || !alive) this.ex.delete(id);
+          if (e.collected || p.status === 'launching' || !alive) {
+            this.dispatched.add(id);
+            this.ex.delete(id);
+          }
           break;
       }
     }
