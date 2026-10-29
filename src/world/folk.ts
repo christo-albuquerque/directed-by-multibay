@@ -86,11 +86,40 @@ export class Net {
   }
 }
 
-type ActionKind = 'hop' | 'flip' | 'wave' | 'stumble' | 'gasp';
-interface Action {
+export type ActionKind = 'hop' | 'flip' | 'wave' | 'stumble' | 'gasp';
+export interface Action {
   kind: ActionKind;
   t: number;
   dur: number;
+}
+
+/** Limbs and extras for a one-shot reaction (jump, flip, wave, stumble with a dropped box, gasp). */
+export function actionPose(act: Action, g: GrainPose, t: number): ReturnType<typeof workLimbs> {
+  const u = Math.min(act.t / act.dur, 1);
+  const base = { armL: 0, armR: 0, legL: 0, legR: 0, bob: 0, lean: 0, roll: 0 };
+  switch (act.kind) {
+    case 'hop':
+      return { ...base, bob: Math.sin(u * Math.PI) * 0.8, armL: -2.8, armR: -2.8 };
+    case 'flip':
+      return { ...base, bob: Math.sin(u * Math.PI) * 1.0, lean: -u * (Math.PI * 2), armL: -1.6, armR: -1.6 };
+    case 'wave':
+      return { ...base, armR: -2.7, swingR: Math.sin(t * 13) * 0.45 };
+    case 'stumble':
+      g.crate = u > 0.1 && u < 0.78 ? 2 : 1;
+      g.crateColor = 0xc89b5f;
+      return { ...base, roll: Math.sin(u * Math.PI * 5) * 0.4 * (1 - u), armL: -2.2 + Math.sin(u * 20) * 0.6, armR: -2.2 - Math.sin(u * 20) * 0.6 };
+    case 'gasp':
+      g.eyeOpen = 1.5;
+      return { ...base, bob: Math.abs(Math.sin(u * Math.PI * 3)) * 0.15, armL: -2.7, armR: -2.7 };
+  }
+}
+
+/** Randomly picks the reaction a poked grain performs (and squeaks). */
+export function pokeAction(look: string, carrying: boolean): Action {
+  sfx.squeak(PITCH[look] ?? 1);
+  if (carrying) return { kind: 'stumble', t: 0, dur: 1.7 };
+  const p = Math.random();
+  return p < 0.34 ? { kind: 'hop', t: 0, dur: 0.6 } : p < 0.67 ? { kind: 'flip', t: 0, dur: 0.85 } : { kind: 'wave', t: 0, dur: 1.9 };
 }
 
 const PITCH: Record<string, number> = { rice: 1, corn: 0.8, wheat: 1.1, quinoa: 1.5, millet: 1.7, basmati: 0.9, medic: 1.1, hazmat: 0.85, punk: 1.2, neon: 1.3 };
@@ -471,24 +500,7 @@ export class Folk {
   }
 
   private actionPose(a: Agent, g: GrainPose, t: number): ReturnType<typeof workLimbs> {
-    const act = a.action!;
-    const u = Math.min(act.t / act.dur, 1);
-    const base = { armL: 0, armR: 0, legL: 0, legR: 0, bob: 0, lean: 0, roll: 0 };
-    switch (act.kind) {
-      case 'hop':
-        return { ...base, bob: Math.sin(u * Math.PI) * 0.8, armL: -2.8, armR: -2.8 };
-      case 'flip':
-        return { ...base, bob: Math.sin(u * Math.PI) * 1.0, lean: -u * TAU, armL: -1.6, armR: -1.6 };
-      case 'wave':
-        return { ...base, armR: -2.7, swingR: Math.sin(t * 13) * 0.45 };
-      case 'stumble':
-        g.crate = u > 0.1 && u < 0.78 ? 2 : u <= 0.1 ? 1 : 1;
-        g.crateColor = 0xc89b5f;
-        return { ...base, roll: Math.sin(u * Math.PI * 5) * 0.4 * (1 - u), armL: -2.2 + Math.sin(u * 20) * 0.6, armR: -2.2 - Math.sin(u * 20) * 0.6 };
-      case 'gasp':
-        g.eyeOpen = 1.5;
-        return { ...base, bob: Math.abs(Math.sin(u * Math.PI * 3)) * 0.15, armL: -2.7, armR: -2.7 };
-    }
+    return actionPose(a.action!, g, t);
   }
 
   private foam(env: Env, a: Agent, target: THREE.Vector3): void {

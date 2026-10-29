@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { SurfacePath, type PathSample } from '../../globe/path';
+import { SurfacePath } from '../../globe/path';
 import { Chart } from '../../globe/surface';
 import { ZONES, zoneChart, type Zone } from '../../globe/zones';
 import { ribbonMesh } from '../belts';
-import { LOOKS, walkLimbs, workLimbs, type GrainPose, type LookName } from '../crowd';
+import { Ambient } from '../ambient';
+import { LOOKS, workLimbs, type GrainPose, type LookName } from '../crowd';
 import { M, Prefab, StaticBatch, glowMat, setGlow } from '../kit';
 import { lamp } from '../line/prefabs';
 import type { Env, Pools } from '../types';
@@ -71,7 +72,6 @@ interface Stroller {
   next: number;
 }
 
-const sample: PathSample = { pos: new THREE.Vector3(), tangent: new THREE.Vector3(), up: new THREE.Vector3() };
 const v3 = new THREE.Vector3();
 
 function tower(w: number, d: number, h: number, color: number, zone: string, r: () => number): Prefab {
@@ -289,28 +289,19 @@ export class City {
       g.forward = d.fwd;
       g.up = d.up;
       g.look = LOOKS[d.look];
-      Object.assign(g, workLimbs((Math.floor(d.phase) + Math.floor(t * 0.1)) % 3 === 0 ? 'sip' : 'sit', t, d.phase), { legL: -1.5, legR: -1.5 });
+      const sipping = (Math.floor(d.phase) + Math.floor(t * 0.1)) % 3 === 0;
+      g.propR = sipping ? undefined : 'chopsticks';
+      g.propL = sipping ? 'cup' : undefined;
+      Object.assign(g, workLimbs(sipping ? 'sip' : 'ramen', t, d.phase), { legL: -1.5, legR: -1.5, bob: -0.2 });
       pools.crowd.draw(g);
     }
     if (env.camDist > 360) return;
-    for (const s of this.strollers) {
-      if (s.pause > 0) {
-        s.pause -= env.dt;
-      } else {
-        s.s = (s.s + s.speed * env.dt) % s.path.length;
-        // Stop to browse at the next stall on the list.
-        if (Math.abs(s.s - s.stops[s.next]) < 0.4) {
-          s.pause = 2 + (s.phase % 3);
-          s.next = (s.next + 1) % s.stops.length;
-        }
-      }
-      s.path.at(s.s, sample);
-      g.pos = sample.pos;
-      g.forward = sample.tangent;
-      g.up = sample.up;
-      g.look = LOOKS[s.look];
-      Object.assign(g, s.pause > 0 ? workLimbs(Math.floor(s.phase) % 2 ? 'sip' : 'wave', t, s.phase) : walkLimbs(t * s.speed * 3.2 + s.phase, s.speed));
-      pools.crowd.draw(g);
+    if (!this.ambient) {
+      this.ambient = new Ambient();
+      this.strollers.forEach((s, i) => this.ambient!.add({ path: s.path, s: s.s, speed: s.speed, look: s.look, stops: s.stops, carry: i % 7 === 0, courier: s.look === 'quinoa', chores: ['coffee', 'news', 'gum', 'wave', 'sip', 'ramen'] }));
     }
+    this.ambient.draw(env, pools);
   }
+
+  ambient?: Ambient;
 }

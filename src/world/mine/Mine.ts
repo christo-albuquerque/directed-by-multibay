@@ -4,7 +4,8 @@ import { Chart, R } from '../../globe/surface';
 import { pitDepthAt } from '../../globe/terrain';
 import { ZONES, zoneChart, type Zone } from '../../globe/zones';
 import { ribbonMesh } from '../belts';
-import { LOOKS, walkLimbs, type GrainPose, type LookName } from '../crowd';
+import { Ambient } from '../ambient';
+import type { LookName } from '../crowd';
 import { Dyn } from '../dyn';
 import { Feeder, HUB_HEIGHT, makeOutpost } from '../feeders';
 import { M, Prefab, StaticBatch, glowMat, setGlow } from '../kit';
@@ -49,6 +50,7 @@ export class Mine {
   private exBase = new THREE.Matrix4();
   private t = 0;
   private walkers: { path: SurfacePath; s: number; look: LookName; speed: number; phase: number }[] = [];
+  ambient?: Ambient;
   private dustAcc = 0;
 
   constructor(batch: StaticBatch) {
@@ -238,19 +240,11 @@ export class Mine {
     this.carts.end();
     this.loads.end();
 
-    if (env.camDist < 300) {
-      const g: GrainPose = { pos: v3, forward: v3, up: v3, look: LOOKS.rice, armL: 0, armR: 0, legL: 0, legR: 0, bob: 0, lean: 0, roll: 0 };
-      for (const w of this.walkers) {
-        w.s = (w.s + w.speed * env.dt) % w.path.length;
-        w.path.at(w.s, sample);
-        g.pos = sample.pos;
-        g.forward = sample.tangent;
-        g.up = sample.up;
-        g.look = LOOKS[w.look];
-        Object.assign(g, walkLimbs(env.elapsed * w.speed * 3.2 + w.phase, w.speed));
-        pools.crowd.draw(g);
-      }
+    if (!this.ambient) {
+      this.ambient = new Ambient();
+      this.walkers.forEach((w, i) => this.ambient!.add({ path: w.path, s: w.s, speed: w.speed, look: w.look, dir: i % 3 === 0 ? -1 : 1, carry: i % 3 === 1, courier: w.look === 'quinoa', chores: ['inspect', 'clipboard', 'repair', 'wave', 'coffee'] }));
     }
+    if (env.camDist < 300) this.ambient.draw(env, pools);
     // Chimney smoke from the crusher.
     this.dustAcc += env.dt * 3;
     while (this.dustAcc >= 1 && env.camDist < 340) {

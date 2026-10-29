@@ -12,6 +12,8 @@ Live site: https://christo-albuquerque.github.io/directed-by-multibay/
 | **Build line:** crates enter hidden housings at each station, so nothing appears from thin air. | **Rocket port:** one rocket leaves out of sight while another returns from a delivery and takes its place. |
 | ![Farms: fields that are seeded, grown, harvested and replanted](docs/farms.jpg) | ![Mines: a spiral pit, dump trucks, mine carts and a crusher](docs/mines.jpg) |
 | **Farms:** seed, grow, harvest, replant, forever. | **Mines:** carts go out full and come back empty. |
+| ![A break plaza beside a line: ramen tables, a coffee cart, hammocks and string lights](docs/break-plaza.jpg) | ![Rain and lightning rolling over the planet](docs/storm.jpg) |
+| **Break plaza:** every line has one. Grains eat ramen, sip coffee, read the paper, blow gum bubbles or nap, while others work. | **Weather:** random drizzle, rain and thunderstorms roll in every few minutes. It has nothing to do with build results. |
 
 The full design lives in [SPEC.md](SPEC.md). Everything is generated in code: no third-party models, textures, fonts or audio. Dependencies must be permissive-licensed (checked in CI).
 
@@ -30,6 +32,18 @@ The full design lives in [SPEC.md](SPEC.md). Everything is generated in code: no
   reduced** (also automatic with your OS setting) removes strobing lights and screen glitches. Big factories lower their
   own render quality if the frame rate drops.
 
+## The grains
+
+Everyone is a little grain with a job and a life, and they are all clickable (they squeak, hop, flip or wave, and drop their box if they were carrying one).
+
+- **Kinds:** rice (blue overalls and a hard hat), corn (husk skirt), wheat (red headband, awns), basmati (tall, goggles, clipboard), quinoa couriers on scooters, tiny millet runners, medics with stretchers and hazmat crews with extinguishers.
+- **Walking:** along walkways and tracks with a lazy side-to-side weave, hopping over belts, never in ruler-straight lines.
+- **Stations:** polishers with magnifier and feather duster at lint, hammer crews at build, throwers and cannon crews at the testing grounds, loaders and packers at the dock.
+- **Always something going on:** even idle lines are busy. Grains haul crates between piles, repair machinery with wrenches, sweep walkways, inspect stations, ride scooters, or take a turn at the plaza.
+- **Alarm:** when a new run starts, everyone off duty sprints back to their station.
+- **Failure:** testers gasp, grab extinguishers and foam the broken stage while a rescue crew arrives; the TVs roll the credits. A cancelled run gets a giant CANCELLED rubber stamp.
+- **Release:** the crowd cheers with glow sticks and flags as the rocket leaves.
+
 ## How runs map to the factory
 
 | GitHub | Factory |
@@ -43,7 +57,7 @@ The full design lives in [SPEC.md](SPEC.md). Everything is generated in code: no
 | failure at a step | Smoke, sparks and a rescue crew at that step's stage |
 | cancelled | The product stops, then slides into the scrap chute |
 
-Not built (yet): storms after repeated failures, and matrix builds fanning out into parallel lanes (their jobs share one lane).
+Not built (yet): matrix builds fanning out into parallel lanes (their jobs share one lane).
 - The demo project whose runs feed the default bay is [multibay-testlot](https://github.com/christo-albuquerque/multibay-testlot).
 
 ## Develop

@@ -120,21 +120,24 @@ export class PlanetWorld {
 
   /** Pokes the grain nearest the pointer (within a few pixels). Returns whether one was hit. */
   pokeGrain(ndc: THREE.Vector2, camera: THREE.PerspectiveCamera): boolean {
-    let best: { line: Line; id: number } | null = null;
+    let best: (() => void) | null = null;
     let bestD = 0.035;
-    for (const l of this.lines) {
-      for (const g of l.grainPickables()) {
+    const sources: { list: { id: number; pos: THREE.Vector3 }[]; poke: (id: number) => void }[] = [];
+    for (const l of this.lines) sources.push({ list: l.grainPickables(), poke: (id) => l.folk.poke(id) });
+    for (const a of [this.farm.ambient, this.mine.ambient, this.city.ambient]) if (a) sources.push({ list: a.pickables(), poke: (id) => a.poke(id) });
+    for (const src of sources) {
+      for (const g of src.list) {
         this.v.copy(g.pos).project(camera);
         if (this.v.z > 1) continue;
         const d = Math.hypot(this.v.x - ndc.x, (this.v.y - ndc.y) * 0.9);
         if (d < bestD) {
           bestD = d;
-          best = { line: l, id: g.id };
+          best = () => src.poke(g.id);
         }
       }
     }
     if (!best) return false;
-    best.line.folk.poke(best.id);
+    (best as () => void)();
     return true;
   }
 

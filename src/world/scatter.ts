@@ -166,7 +166,7 @@ export class Scatter {
     const lamps = kind(lamp(), 1, 1);
 
     // Wilderness: every direction on a golden spiral, kept if it is clear of districts and not too close to a road.
-    const N = 17000;
+    const N = 22000;
     const dir = new THREE.Vector3();
     for (let i = 0; i < N; i++) {
       const y = 1 - ((i + 0.5) / N) * 2;

@@ -3,7 +3,8 @@ import { SurfacePath } from '../../globe/path';
 import { Chart } from '../../globe/surface';
 import { ZONES, zoneChart, type Zone } from '../../globe/zones';
 import { ribbonMesh } from '../belts';
-import { LOOKS, walkLimbs, type GrainPose, type LookName } from '../crowd';
+import { Ambient } from '../ambient';
+import type { LookName } from '../crowd';
 import { Dyn } from '../dyn';
 import { HUB_HEIGHT, makeOutpost } from '../feeders';
 import { M, Prefab, StaticBatch, bentSlab, glowMat, setGlow } from '../kit';
@@ -267,21 +268,14 @@ export class Farm {
     this.combines.end();
 
     // Farmhands.
-    const g: GrainPose = { pos: v3, forward: v3, up: v3, look: LOOKS.rice, armL: 0, armR: 0, legL: 0, legR: 0, bob: 0, lean: 0, roll: 0 };
-    const sample = { pos: new THREE.Vector3(), tangent: new THREE.Vector3(), up: new THREE.Vector3() };
-    if (env.camDist < 360) {
-      for (const h of this.hands) {
-        h.s = (h.s + h.speed * env.dt) % h.path.length;
-        h.path.at(h.s, sample);
-        g.pos = sample.pos;
-        g.forward = sample.tangent;
-        g.up = sample.up;
-        g.look = LOOKS[h.look];
-        Object.assign(g, walkLimbs(env.elapsed * h.speed * 3.2 + h.phase, h.speed));
-        pools.crowd.draw(g);
-      }
+    if (!this.ambient) {
+      this.ambient = new Ambient();
+      this.hands.forEach((h, i) => this.ambient!.add({ path: h.path, s: h.s, speed: h.speed, look: h.look, carry: i % 4 === 0, courier: h.look === 'quinoa', chores: ['inspect', 'clipboard', 'coffee', 'wave', 'repair'] }));
     }
+    if (env.camDist < 360) this.ambient.draw(env, pools);
   }
+
+  ambient?: Ambient;
 
   private vehicleMatrix(v: Vehicle, h: number): THREE.Matrix4 {
     return this.chart.matrix(v.x, v.z, h, v.yaw, m4);

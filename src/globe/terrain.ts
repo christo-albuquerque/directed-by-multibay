@@ -34,6 +34,9 @@ const COLORS: Record<string, THREE.Color> = {
   power: new THREE.Color(0x58664a),
 };
 const ICE = new THREE.Color(0xdfe9f2);
+const FOREST = new THREE.Color(0x3d6b35);
+const MEADOW = new THREE.Color(0x6a8f45);
+const ROCKY = new THREE.Color(0x7a6a58);
 
 const MINE_ZONE = ZONES.find((z) => z.kind === 'mine')!;
 
@@ -82,7 +85,12 @@ export function buildTerrain(): THREE.Mesh {
   for (let f = 0; f < n; f += 3) {
     dir.copy(dirs[f]).add(dirs[f + 1]).add(dirs[f + 2]).normalize();
     const variation = noise3(dir.x * 23, dir.y * 23, dir.z * 23);
+    // Biomes match the wilderness scatter: forest floor, meadow, rocky waste.
+    const biome = noise3(dir.x * 3.1 + 5, dir.y * 3.1, dir.z * 3.1);
     color.copy(BASE_A).lerp(BASE_B, 0.5 + noise3(dir.x * 4, dir.y * 4, dir.z * 4) * 0.5);
+    if (biome > 0.12) color.lerp(FOREST, 0.85);
+    else if (biome > -0.25) color.lerp(MEADOW, 0.8);
+    else color.lerp(ROCKY, 0.6);
     for (const z of faceZones) {
       const w = zoneWeight(z, dir, 10);
       if (w > 0) color.lerp(COLORS[z.kind], Math.min(1, w * 0.9));
