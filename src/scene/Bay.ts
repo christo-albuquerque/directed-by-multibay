@@ -153,7 +153,9 @@ export class Bay {
 
   update(dt: number, elapsed: number, mode: FactoryMode, state: FactoryState, fx: Particles, night: number): void {
     const running = mode !== 'idle';
-    if (running) this.beltTex.offset.x -= dt * 0.9;
+    // Busier factory, faster belt and heavier smoke.
+    const busy = state.activity;
+    if (running) this.beltTex.offset.x -= dt * (0.45 + 0.8 * busy);
 
     // Build press: stamps down on each crate, dry-cycles gently otherwise.
     let dip = 0;
@@ -168,7 +170,7 @@ export class Bay {
 
     // Chimney smoke while the factory is busy.
     if (running) {
-      this.smokeAcc += dt * 6;
+      this.smokeAcc += dt * (2.5 + 6 * busy);
       while (this.smokeAcc >= 1) {
         this.smokeAcc -= 1;
         fx.emit(CHIMNEY_TOP, this.tmp.set((Math.random() - 0.3) * 0.3, 0.9, (Math.random() - 0.5) * 0.3), { color: 0x9aa1ab, size0: 0.35, size1: 1.3, life: 2.6, alpha: 0.5, drag: 0.4 });

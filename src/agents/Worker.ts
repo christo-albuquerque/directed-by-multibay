@@ -19,6 +19,8 @@ export interface WorkerContext {
   fx: Particles;
   /** Where the current failure is, or null. */
   incident: THREE.Vector3 | null;
+  /** 0..1: how busy the factory is. Quiet factories only half-staff their stations. */
+  activity: number;
 }
 
 type ActionKind = 'hop' | 'flip' | 'wave' | 'stumble' | 'gasp';
@@ -53,6 +55,8 @@ export class Worker {
   private phase = Math.random() * 10;
   private hop = 0;
   private activity: Activity = 'stand';
+  /** Fixed per worker: those with a low rank get busy first as activity rises. */
+  private rank = Math.random();
 
   private wantIdle = true;
   private idleActive = true;
@@ -169,10 +173,11 @@ export class Worker {
         moving = !this.goTo(r.spot, speed, dt);
         if (!moving) {
           this.turnTo(r.face, dt);
-          activity = r.style;
+          // Quiet factory: only some of the crew are hard at work; the rest wait by their station.
+          activity = this.rank < 0.35 + 0.65 * ctx.activity ? r.style : 'stand';
         }
       } else if (r.kind === 'courier') {
-        if (this.pause > 0) {
+        if (this.pause > 0 || this.rank > 0.25 + 0.75 * ctx.activity) {
           this.pause -= dt;
         } else if (this.goTo(this.stage === 0 ? r.a : r.b, speed, dt)) {
           this.carrying = this.stage === 0;

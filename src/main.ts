@@ -14,7 +14,12 @@ import { Particles } from './scene/Particles';
 import { ProductView } from './scene/ProductView';
 import { Weather } from './scene/Weather';
 import { World } from './scene/World';
+import { getToken, loadConfig, setToken } from './config';
+import { GitHubPoller, type PollerMeta } from './data/github';
+import type { NormalizedRun } from './sim/runs';
 import { DemoPanel } from './ui/DemoPanel';
+import { LivePanel } from './ui/LivePanel';
+import { ProductPanel } from './ui/ProductPanel';
 import { sfx } from './ui/sfx';
 
 const container = document.getElementById('app') as HTMLElement;
@@ -36,7 +41,52 @@ const weather = new Weather();
 const fx = new Particles();
 world.scene.add(bay.group, launchpad.group, courtyard.group, products.group, crowd.group, incidents.group, alarm.group, weather.group, fx.points);
 
-// Clicking a worker pokes them. A press that moves is an orbit drag, not a click.
+// Live data: real GitHub Actions runs become products on the belt.
+const config = loadConfig();
+let latestRuns: NormalizedRun[] = [];
+let pollerMeta: PollerMeta | null = null;
+let live = config.live;
+const poller = new GitHubPoller({
+  repos: () => config.repos,
+  token: getToken,
+  isBusy: () => state.mode !== 'idle',
+  onRuns: (runs) => {
+    latestRuns = runs;
+    state.syncRuns(runs, Date.now());
+  },
+  onMeta: (m) => (pollerMeta = m),
+});
+
+// Selection: click a product (or a run in the live list) to see where it is and what it is.
+let selectedKey: string | null = null;
+const select = (key: string | null): void => {
+  selectedKey = key;
+  products.setSelected(key);
+};
+const livePanel = new LivePanel(
+  document.body,
+  config.repos,
+  {
+    onSelect: (key) => select(selectedKey === key ? null : key),
+    onToggle: () => {
+      live = !live;
+      if (live) poller.start();
+      else poller.stop();
+      livePanel.setPaused(!live);
+      return live;
+    },
+    onToken: () => {
+      const entered = window.prompt('Optional: paste a read-only GitHub token to raise the API limit from 60 to 5000 requests/hour.\nIt stays in this browser only. Leave empty to remove a saved token.', '');
+      if (entered === null) return;
+      setToken(entered.trim() || null);
+      poller.refresh();
+    },
+  },
+  live,
+);
+const productPanel = new ProductPanel(document.body, () => select(null));
+
+// Clicking a product selects it, a worker pokes them. A press that moves is an orbit drag, not a click.
 let down: { x: number; y: number; t: number } | null = null;
 const canvas = world.renderer.domElement;
 canvas.addEventListener('pointerdown', (e) => (down = { x: e.clientX, y: e.clientY, t: performance.now() }));
@@ -44,7 +94,11 @@ canvas.addEventListener('pointerup', (e) => {
   if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5 || performance.now() - down.t > 400) return;
   const rect = canvas.getBoundingClientRect();
   const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
-  crowd.pick(ndc, world.camera)?.poke();
+  const key = products.pick(ndc, world.camera);
+  if (key) return select(selectedKey === key ? null : key);
+  const worker = crowd.pick(ndc, world.camera);
+  if (worker) worker.poke();
+  else select(null);
 });
 
 // `?lineup` parades every grain variant in front of the bay (handy for checking the models).
@@ -102,14 +156,25 @@ world.onUpdate((dt, elapsed) => {
   launchpad.update(dt, elapsed, state.launchAge, fx);
   courtyard.update(dt, mode === 'idle', fx);
   incidents.update(dt, elapsed, state, fx);
-  crowd.update(dt, elapsed, mode, { fx, incident: incidents.incident });
+  crowd.update(dt, elapsed, mode, { fx, incident: incidents.incident, activity: state.activity });
   alarm.update(dt, elapsed, crowd.alarmLeft > 0 || mode === 'failure', crowd.alarmLeft > 0);
   products.update(state, elapsed, fx);
   fx.update(dt, world.camera, world.renderer);
   panel.update(mode, state.stats);
+
+  const now = Date.now();
+  if (elapsed - lastUiTick > 0.25) {
+    lastUiTick = elapsed;
+    livePanel.update(pollerMeta, latestRuns, selectedKey, now);
+    const product = selectedKey ? (state.products.find((p) => p.key === selectedKey) ?? null) : null;
+    const run = product?.run ?? latestRuns.find((r) => r.key === selectedKey) ?? null;
+    productPanel.update(selectedKey, product, run, now);
+  }
 });
+let lastUiTick = 0;
 
 world.start();
+if (live) poller.start();
 // Handy for poking at the scene from the console during development.
 const debug = window as unknown as { __factory: FactoryState; __world: World; __crowd: Crowd };
 debug.__factory = state;

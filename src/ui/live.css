@@ -1,0 +1,100 @@
+.live-panel {
+  position: fixed;
+  top: 64px;
+  left: 16px;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(12, 16, 28, 0.84);
+  color: #f0eae1;
+  font: 12px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+}
+.live-head { display: flex; align-items: center; gap: 8px; }
+.live-head .live-repos { opacity: 0.7; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px #34d399; flex: none; }
+.live-panel.paused .live-dot { background: #64748b; box-shadow: none; }
+.live-status { margin-top: 4px; opacity: 0.85; }
+.live-meter { opacity: 0.6; font-size: 11px; margin-top: 2px; }
+.live-error { display: none; margin-top: 4px; color: #fca5a5; font-size: 11px; }
+.live-buttons { display: flex; gap: 6px; margin-top: 8px; }
+.live-buttons button {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: #26324a;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.live-buttons button:hover { background: #33425f; }
+.live-runs { list-style: none; margin: 8px 0 0; padding: 0; }
+.live-runs .run {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.live-runs .run:hover { background: rgba(255, 255, 255, 0.08); }
+.live-runs .run.selected { background: rgba(53, 224, 255, 0.18); }
+.live-runs .run .dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; flex: none; }
+.live-runs .run.in_progress .dot { background: #fbbf24; animation: pulse 1s infinite; }
+.live-runs .run.success .dot { background: #34d399; }
+.live-runs .run.failure .dot { background: #f87171; }
+.live-runs .run.cancelled .dot { background: #94a3b8; }
+.live-runs .run .num { opacity: 0.7; flex: none; }
+.live-runs .run .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+
+.product-panel {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  width: 330px;
+  max-width: calc(100vw - 32px);
+  max-height: 52vh;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(12, 16, 28, 0.92);
+  color: #f0eae1;
+  font: 12px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(53, 224, 255, 0.35);
+}
+.product-panel .pp-head { display: flex; align-items: center; gap: 8px; }
+.product-panel .pp-title { font-weight: 700; font-size: 14px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.product-panel .pp-chip { padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; text-transform: uppercase; background: #334155; }
+.product-panel .pp-chip.moving, .product-panel .pp-chip.in_progress { background: #8a5a00; }
+.product-panel .pp-chip.success, .product-panel .pp-chip.launching { background: #1d6f4a; }
+.product-panel .pp-chip.failed, .product-panel .pp-chip.failure { background: #b3261e; }
+.product-panel .pp-close { border: 0; background: none; color: inherit; font-size: 16px; cursor: pointer; opacity: 0.7; }
+.product-panel .pp-sub { opacity: 0.65; margin: 2px 0 8px; }
+.product-panel .pp-row { display: flex; gap: 8px; margin: 2px 0; }
+.product-panel .pp-row b { width: 58px; flex: none; opacity: 0.6; font-weight: 600; }
+.product-panel .pp-row span { overflow-wrap: anywhere; }
+.product-panel .pp-track { display: flex; gap: 3px; margin: 10px 0 4px; }
+.product-panel .pp-pip { flex: 1; text-align: center; font-size: 9px; padding: 3px 0; border-radius: 4px; background: #1e293b; opacity: 0.7; position: relative; overflow: hidden; }
+.product-panel .pp-pip i { position: absolute; inset: 0; background: rgba(53, 224, 255, 0.4); transform-origin: left; }
+.product-panel .pp-pip em { position: relative; font-style: normal; }
+.product-panel .pp-pip.current { opacity: 1; outline: 1px solid #35e0ff; }
+.product-panel .pp-steps { margin: 8px 0 0; padding: 0; list-style: none; }
+.product-panel .pp-job { margin-top: 6px; font-weight: 700; opacity: 0.85; }
+.product-panel .pp-step { display: flex; gap: 6px; padding: 1px 0 1px 8px; }
+.product-panel .pp-step .ic { width: 14px; flex: none; text-align: center; }
+.product-panel .pp-step.failure .ic { color: #f87171; }
+.product-panel .pp-step.success .ic { color: #34d399; }
+.product-panel .pp-step.in_progress .ic { color: #fbbf24; }
+.product-panel .pp-step .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.product-panel a { color: #7dd3fc; }
+.product-panel .pp-note { opacity: 0.6; margin-top: 8px; }
+
+@media (max-width: 700px) {
+  .live-panel .live-runs, .live-panel .live-meter { display: none; }
+  .product-panel { bottom: 12px; max-height: 40vh; }
+}

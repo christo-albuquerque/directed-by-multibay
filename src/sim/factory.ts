@@ -1,14 +1,15 @@
-export const STAGES = ['depot', 'lint', 'build', 'test', 'dispatch'] as const;
-export type StageName = (typeof STAGES)[number];
+import { progressOf, type NormalizedRun, type RunProgress } from './runs';
+import { LAUNCHPAD_U, STAGES, type StageName } from './stages';
 
-/** Path position at which a product reaches the launchpad. */
-export const LAUNCHPAD_U = STAGES.length;
+export { LAUNCHPAD_U, STAGES, type StageName };
 
 export type ProductStatus = 'moving' | 'failed' | 'cancelled' | 'launching' | 'launched';
 export type FactoryMode = 'idle' | 'running' | 'failure' | 'release';
 
 export interface Product {
   id: number;
+  /** Stable identity: `demo-<id>` for demo runs, the run key for live ones. */
+  key: string;
   label: string;
   /** Continuous position along the pipeline: integer part = stage index, 5 = launchpad. */
   u: number;
@@ -17,6 +18,11 @@ export interface Product {
   failAt: number | null;
   /** Seconds spent in the current terminal-ish status. */
   age: number;
+  /** For live products: how far the real run has got. The product travels there and waits. */
+  target?: number;
+  /** Latest snapshot of the real GitHub run behind this product. */
+  run?: NormalizedRun;
+  progress?: RunProgress;
 }
 
 export interface SpawnOptions {
@@ -30,6 +36,9 @@ export interface FactoryStats {
   cancelled: number;
 }
 
+/** A run that finished within this window of its first sighting still gets its ending animated. */
+const REPLAY_WINDOW_MS = 120_000;
+
 /** Pure, render-free pipeline simulation. Mode is derived from the products present. */
 export class FactoryState {
   products: Product[] = [];
@@ -41,13 +50,20 @@ export class FactoryState {
   /** How long wreckage stays on screen (long enough for the rescue crew to arrive and work). */
   lingerSeconds = 9;
   launchSeconds = 7;
+  /** Live runs started in the last ten minutes. */
+  recentRuns = 0;
   private nextId = 1;
+  private tracked = new Map<string, Product>();
+  private known = new Set<string>();
+  private baselined = false;
 
   spawn(opts: SpawnOptions = {}): Product {
     const failAt = opts.failAt ? STAGES.indexOf(opts.failAt) : null;
+    const id = this.nextId++;
     const product: Product = {
-      id: this.nextId++,
-      label: opts.label ?? `run-${this.nextId - 1}`,
+      id,
+      key: `demo-${id}`,
+      label: opts.label ?? `run-${id}`,
       u: 0,
       status: 'moving',
       failAt,
@@ -57,20 +73,76 @@ export class FactoryState {
     return product;
   }
 
+  /** Cancels demo runs; live runs are cancelled by GitHub, not by the panel. */
   cancelAll(): void {
-    for (const p of this.products) {
-      if (p.status === 'moving') {
-        p.status = 'cancelled';
-        p.age = 0;
-        this.stats.cancelled++;
+    for (const p of this.products) if (!p.run) this.cancel(p);
+  }
+
+  private cancel(p: Product): void {
+    if (p.status !== 'moving') return;
+    p.status = 'cancelled';
+    p.age = 0;
+    this.stats.cancelled++;
+  }
+
+  /**
+   * Reconciles real workflow runs with the factory. Runs already finished when we first look are not
+   * replayed; active runs appear on the belt, move as far as the real run has got, and finish for real.
+   */
+  syncRuns(runs: NormalizedRun[], nowMs: number): void {
+    const ordered = [...runs].sort((a, b) => a.createdAt - b.createdAt);
+    for (const run of ordered) {
+      let p = this.tracked.get(run.key);
+      if (!p) {
+        if (this.known.has(run.key)) continue;
+        const finished = run.status === 'completed';
+        if (finished && (!this.baselined || nowMs - run.updatedAt > REPLAY_WINDOW_MS)) {
+          this.known.add(run.key);
+          continue;
+        }
+        p = this.spawnRun(run);
       }
+      this.applyRun(p, run);
     }
+    this.baselined = true;
+    this.recentRuns = runs.filter((r) => nowMs - r.createdAt < 600_000).length;
+  }
+
+  private spawnRun(run: NormalizedRun): Product {
+    const id = this.nextId++;
+    const p: Product = { id, key: run.key, label: `${run.repo.split('/')[1] ?? run.repo} #${run.runNumber}`, u: 0, status: 'moving', failAt: null, age: 0, target: 0, run };
+    this.products.push(p);
+    this.tracked.set(run.key, p);
+    return p;
+  }
+
+  private applyRun(p: Product, run: NormalizedRun): void {
+    p.run = run;
+    if (p.status !== 'moving') return;
+    const progress = progressOf(run);
+    p.progress = progress;
+    if (progress.outcome === 'cancelled') {
+      this.cancel(p);
+    } else if (progress.outcome === 'failure') {
+      p.failAt = progress.failAt;
+      p.target = progress.u;
+    } else {
+      p.target = Math.max(p.target ?? 0, progress.u);
+    }
+    if (p.target !== undefined && p.u > p.target) p.u = p.target;
   }
 
   update(dt: number): void {
     for (const p of this.products) {
       if (p.status === 'moving') {
-        p.u += this.speed * dt;
+        if (p.target === undefined) {
+          p.u += this.speed * dt;
+        } else {
+          // Live product: head for where the real run is, catching up faster when far behind.
+          const goal = p.failAt !== null ? Math.min(p.target, p.failAt + 0.5) : p.target;
+          const gap = goal - p.u;
+          if (gap > 0) p.u += Math.min(gap, Math.max(this.speed, gap * 0.8) * dt);
+        }
         if (p.failAt !== null && p.u >= p.failAt + 0.5) {
           p.u = p.failAt + 0.5;
           p.status = 'failed';
@@ -91,9 +163,14 @@ export class FactoryState {
         }
       }
     }
-    this.products = this.products.filter(
-      (p) => p.status !== 'launched' && !((p.status === 'failed' || p.status === 'cancelled') && p.age >= this.lingerSeconds),
-    );
+    this.products = this.products.filter((p) => {
+      const gone = p.status === 'launched' || ((p.status === 'failed' || p.status === 'cancelled') && p.age >= this.lingerSeconds);
+      if (gone && p.run) {
+        this.tracked.delete(p.key);
+        this.known.add(p.key);
+      }
+      return !gone;
+    });
   }
 
   get mode(): FactoryMode {
@@ -101,6 +178,14 @@ export class FactoryState {
     if (this.products.some((p) => p.status === 'launching')) return 'release';
     if (this.products.some((p) => p.status === 'moving')) return 'running';
     return 'idle';
+  }
+
+  /** 0..1: how busy the factory should look, from active runs and recent history. */
+  get activity(): number {
+    // Demo runs count for more so a single button press already looks lively.
+    let load = 0.04 * this.recentRuns;
+    for (const p of this.products) if (p.status === 'moving' || p.status === 'launching') load += p.run ? 0.3 : 0.55;
+    return Math.min(1, load);
   }
 
   /** Age of the oldest product currently launching, or null. */

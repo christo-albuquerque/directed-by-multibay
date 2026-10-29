@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { FactoryState, Product, ProductStatus } from '../sim/factory';
 import { testPose } from './choreography';
-import { pathPosition } from './layout';
+import { PATH_X, pathPosition } from './layout';
 import type { Particles } from './Particles';
 import { sfx } from '../ui/sfx';
 import { box, makeLabel, shadowAll } from './util';
@@ -96,6 +96,9 @@ interface View {
   drop: THREE.Group;
   stampHit: boolean;
   trapOpened: boolean;
+  highlight: THREE.Group;
+  ring: THREE.Mesh;
+  trail: THREE.Mesh;
 }
 
 const STAMP_HI = 2.6;
@@ -168,7 +171,24 @@ function makeView(p: Product): View {
   drop.add(crate, sealedBox, label, ...imprints);
   group.add(drop);
   shadowAll(group);
-  return { group, crate, sealedBox, seals, boxMats, crateMat, sealed: false, stamp, imprints, flapL, flapR, drop, stampHit: false, trapOpened: false };
+
+  // Selection highlight: a pulsing ring, a tall beam and a glowing trail back along the belt.
+  const hl = new THREE.MeshBasicMaterial({ color: 0x35e0ff, transparent: true, opacity: 0.8, depthWrite: false });
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.05, 8, 36), hl);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.06;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 7, 8), new THREE.MeshBasicMaterial({ color: 0x35e0ff, transparent: true, opacity: 0.35, depthWrite: false }));
+  beam.position.y = 3.5 + 1.0;
+  const trail = new THREE.Mesh(new THREE.BoxGeometry(1, 0.06, 0.16), new THREE.MeshBasicMaterial({ color: 0x35e0ff, transparent: true, opacity: 0.55, depthWrite: false }));
+  trail.position.y = 0.02;
+  const highlight = new THREE.Group();
+  highlight.add(ring, beam, trail);
+  highlight.visible = false;
+  // Highlight parts must never swallow clicks meant for the product underneath.
+  for (const m of [ring, beam, trail]) m.raycast = () => undefined;
+  group.add(highlight);
+  group.userData.productKey = p.key;
+  return { group, crate, sealedBox, seals, boxMats, crateMat, sealed: false, stamp, imprints, flapL, flapR, drop, stampHit: false, trapOpened: false, highlight, ring, trail };
 }
 
 /** Keeps one 3D product per sim Product: a raw crate that is pressed into a sealed box, tested, loaded and launched. */
@@ -176,6 +196,24 @@ export class ProductView {
   readonly group = new THREE.Group();
   private views = new Map<number, View>();
   private tmp = new THREE.Vector3();
+  private raycaster = new THREE.Raycaster();
+  private selected: string | null = null;
+
+  setSelected(key: string | null): void {
+    this.selected = key;
+  }
+
+  /** Key of the product under the pointer (normalised device coords), if any. */
+  pick(ndc: THREE.Vector2, camera: THREE.Camera): string | null {
+    this.raycaster.setFromCamera(ndc, camera);
+    const hit = this.raycaster.intersectObjects(this.group.children, true)[0];
+    let o: THREE.Object3D | null = hit?.object ?? null;
+    while (o) {
+      if (typeof o.userData.productKey === 'string') return o.userData.productKey;
+      o = o.parent;
+    }
+    return null;
+  }
 
   update(state: FactoryState, elapsed: number, fx: Particles): void {
     const live = new Set<number>();
@@ -267,6 +305,16 @@ export class ProductView {
     }
     const tested = p.u >= TESTED_AT && p.status !== 'failed';
     for (const s of v.seals) s.visible = tested;
+
+    const isSel = this.selected === p.key;
+    v.highlight.visible = isSel && p.status !== 'launching';
+    if (isSel) {
+      v.ring.scale.setScalar(1 + Math.sin(elapsed * 5) * 0.08);
+      // Trail runs back along the belt to where the product started.
+      const len = Math.max(0.01, Math.min(pos.x - PATH_X[0], 20));
+      v.trail.scale.x = len;
+      v.trail.position.x = -len / 2;
+    }
 
     const tint = new THREE.Color(BOX_COLOR[p.status]);
     v.crateMat.color.copy(tint);

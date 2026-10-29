@@ -94,6 +94,8 @@ export interface CrowdContext {
   fx: Particles;
   /** Position of the failed product, or null when nothing is broken. */
   incident: THREE.Vector3 | null;
+  /** 0..1 factory busyness. */
+  activity: number;
 }
 
 /** Owns every worker, reacts to factory mode changes, and handles click picking. */
@@ -153,7 +155,7 @@ export class Crowd {
       this.prevMode = mode;
     }
     this.alarmLeft = Math.max(0, this.alarmLeft - dt);
-    const wctx = { ground: groundAt, fx: ctx.fx, incident: ctx.incident };
+    const wctx = { ground: groundAt, fx: ctx.fx, incident: ctx.incident, activity: ctx.activity };
     for (const w of this.workers) w.update(dt, elapsed, wctx);
   }
 
