@@ -1,5 +1,10 @@
 # DirectedByMultiBay
 
+> **v2 (milestones 9-14): globe redesign.** The flat isometric v1 (tag `v1-flat`) was replaced by a rounded planet
+> with a fixed master plan: 6 build lines, farms, mines, a rocket port, a cyberpunk night market and sky traffic.
+> All loops are closed (no pop-in/out: items enter hidden housings, rockets leave out of view while another returns),
+> and everything is still generated in code. Source: `src/globe` (planet, camera, zones) and `src/world` (districts).
+>
 > **Status (milestones 0-8 complete).** The original spec below is kept as written. What differs in the build:
 > - Each repo has its **own launchpad** (and rescue hut, alarm and crew), not one shared central pad.
 > - Rendering is vanilla TypeScript + Three.js with a small DOM overlay (no React).

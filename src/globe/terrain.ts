@@ -1,0 +1,101 @@
+import * as THREE from 'three';
+import { R } from './surface';
+import { ZONES, zoneChart, zoneWeight, type Zone } from './zones';
+
+function hash3(x: number, y: number, z: number): number {
+  const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+/** Smooth value noise in 3D, roughly -1..1. */
+export function noise3(x: number, y: number, z: number): number {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const zi = Math.floor(z);
+  const xf = x - xi;
+  const yf = y - yi;
+  const zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const w = zf * zf * (3 - 2 * zf);
+  const l = (a: number, b: number, t: number): number => a + (b - a) * t;
+  const c = (dx: number, dy: number, dz: number): number => hash3(xi + dx, yi + dy, zi + dz);
+  return (l(l(l(c(0, 0, 0), c(1, 0, 0), u), l(c(0, 1, 0), c(1, 1, 0), u), v), l(l(c(0, 0, 1), c(1, 0, 1), u), l(c(0, 1, 1), c(1, 1, 1), u), v), w)) * 2 - 1;
+}
+
+const BASE_A = new THREE.Color(0x8a4b3a);
+const BASE_B = new THREE.Color(0x6e5a3c);
+const COLORS: Record<string, THREE.Color> = {
+  line: new THREE.Color(0x5d625f),
+  city: new THREE.Color(0x33364a),
+  port: new THREE.Color(0x6a6c70),
+  farm: new THREE.Color(0x4f7f3c),
+  mine: new THREE.Color(0x5a4636),
+  power: new THREE.Color(0x58664a),
+};
+const ICE = new THREE.Color(0xdfe9f2);
+
+const MINE_ZONE = ZONES.find((z) => z.kind === 'mine')!;
+
+/** Depth of the open-pit mine at a direction (positive = deeper). */
+export const PIT_RADIUS = 30;
+export const PIT_DEPTH = 13;
+
+export function pitDepth(dir: THREE.Vector3): number {
+  const p = zoneChart(MINE_ZONE).toLocal(dir);
+  return pitDepthAt(p.x, p.y);
+}
+
+/** Depth of the open-pit mine at chart (x, z) in the mine zone: a smooth bowl with a flat floor. */
+export function pitDepthAt(x: number, z: number): number {
+  const r = Math.hypot(x, z);
+  if (r >= PIT_RADIUS) return 0;
+  const t = 1 - r / PIT_RADIUS;
+  return PIT_DEPTH * Math.min(1, Math.pow(t * 1.35, 1.25));
+}
+
+/** Height offset below ground level R at a direction: rough low-poly relief, plus the mine pit. */
+export function reliefAt(dir: THREE.Vector3): number {
+  const n = noise3(dir.x * 7, dir.y * 7, dir.z * 7) * 0.5 + noise3(dir.x * 19, dir.y * 19, dir.z * 19) * 0.25 + 0.75;
+  return -(n * 1.4) - pitDepth(dir);
+}
+
+/** Builds the planet surface: a low-poly sphere with biome colours and an excavated mine pit. */
+export function buildTerrain(): THREE.Mesh {
+  const geo = new THREE.IcosahedronGeometry(R, 46);
+  const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+  const n = pos.count;
+  const dir = new THREE.Vector3();
+  const color = new THREE.Color();
+  const colors = new Float32Array(n * 3);
+  const dirs: THREE.Vector3[] = [];
+
+  for (let i = 0; i < n; i++) {
+    dir.set(pos.getX(i), pos.getY(i), pos.getZ(i)).normalize();
+    const h = reliefAt(dir);
+    pos.setXYZ(i, dir.x * (R + h), dir.y * (R + h), dir.z * (R + h));
+    dirs.push(dir.clone());
+  }
+
+  // One colour per face (flat shading): blend the biome colours at the face centre.
+  const faceZones: Zone[] = ZONES;
+  for (let f = 0; f < n; f += 3) {
+    dir.copy(dirs[f]).add(dirs[f + 1]).add(dirs[f + 2]).normalize();
+    const variation = noise3(dir.x * 23, dir.y * 23, dir.z * 23);
+    color.copy(BASE_A).lerp(BASE_B, 0.5 + noise3(dir.x * 4, dir.y * 4, dir.z * 4) * 0.5);
+    for (const z of faceZones) {
+      const w = zoneWeight(z, dir, 10);
+      if (w > 0) color.lerp(COLORS[z.kind], Math.min(1, w * 0.9));
+    }
+    if (Math.abs(dir.y) > 0.93) color.lerp(ICE, Math.min(1, (Math.abs(dir.y) - 0.93) * 18));
+    color.multiplyScalar(0.9 + variation * 0.1);
+    for (let k = 0; k < 3; k++) colors.set([color.r, color.g, color.b], (f + k) * 3);
+  }
+
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95, metalness: 0 }));
+  mesh.receiveShadow = true;
+  mesh.name = 'terrain';
+  return mesh;
+}

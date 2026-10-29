@@ -1,0 +1,26 @@
+.nav-panel {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: min(520px, calc(100vw - 32px));
+}
+.nav-panel button {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(12, 16, 28, 0.82);
+  color: #f0eae1;
+  font: 600 12px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+.nav-panel button:hover { background: rgba(53, 224, 255, 0.25); }
+@media (max-width: 700px) {
+  .nav-panel { top: auto; bottom: 64px; left: 12px; right: 12px; justify-content: center; }
+  .nav-panel button { padding: 5px 8px; font-size: 11px; }
+}

@@ -1,6 +1,6 @@
 import { isRepoName } from '../config';
 import type { PollerMeta } from '../data/github';
-import { MAX_BAYS } from '../scene/layoutPlan';
+import { MAX_LINES as MAX_BAYS } from '../globe/zones';
 import type { NormalizedRun } from '../sim/runs';
 import { clear, el } from './dom';
 import './live.css';

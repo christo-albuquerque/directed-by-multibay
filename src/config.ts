@@ -1,4 +1,4 @@
-import { MAX_BAYS } from './scene/layoutPlan';
+import { MAX_LINES as MAX_BAYS } from './globe/zones';
 
 /** Used when there is no `?repos=`, no saved list and no repos.json. */
 export const DEFAULT_REPOS = ['christo-albuquerque/multibay-testlot'];

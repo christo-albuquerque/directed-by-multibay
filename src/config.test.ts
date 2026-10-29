@@ -8,7 +8,7 @@ describe('parseRepoList', () => {
 
   it('is empty for non-arrays and caps the number of bays', () => {
     expect(parseRepoList('a/b')).toEqual([]);
-    expect(parseRepoList(['a/1', 'a/2', 'a/3', 'a/4', 'a/5', 'a/6'])).toHaveLength(4);
+    expect(parseRepoList(['a/1', 'a/2', 'a/3', 'a/4', 'a/5', 'a/6', 'a/7', 'a/8'])).toHaveLength(6);
   });
 });
 
