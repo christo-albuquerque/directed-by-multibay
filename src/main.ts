@@ -6,6 +6,7 @@ import { Bay } from './scene/Bay';
 import { Launchpad } from './scene/Launchpad';
 import { Lighting } from './scene/Lighting';
 import { addStars, buildPlanet } from './scene/Planet';
+import { Particles } from './scene/Particles';
 import { ProductView } from './scene/ProductView';
 import { World } from './scene/World';
 import { DemoPanel } from './ui/DemoPanel';
@@ -21,7 +22,8 @@ const bay = new Bay('BAY 1 · multibay-testlot');
 const launchpad = new Launchpad();
 const products = new ProductView();
 const crowd = new Crowd();
-world.scene.add(bay.group, launchpad.group, products.group, crowd.group);
+const fx = new Particles();
+world.scene.add(bay.group, launchpad.group, products.group, crowd.group, fx.points);
 
 // Clicking a worker pokes them. A press that moves is an orbit drag, not a click.
 let down: { x: number; y: number; t: number } | null = null;
@@ -78,10 +80,11 @@ world.onUpdate((dt, elapsed) => {
   state.update(dt);
   const mode = state.mode;
   lighting.update(dt, mode);
-  bay.update(dt, elapsed, mode, state);
-  launchpad.update(dt, elapsed, state.launchAge);
+  bay.update(dt, elapsed, mode, state, fx, lighting.night);
+  launchpad.update(dt, elapsed, state.launchAge, fx);
   crowd.update(dt, elapsed, mode);
-  products.update(state, elapsed);
+  products.update(state, elapsed, fx);
+  fx.update(dt, world.camera, world.renderer);
   panel.update(mode, state.stats);
 });
 

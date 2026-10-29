@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { FactoryMode } from '../sim/factory';
-import { PATH_X } from '../scene/Bay';
+import { PATH_X } from '../scene/layout';
 import { rng } from '../scene/util';
 import type { GrainVariant } from './grains';
 import { Worker, type Routine, type WorkStyle } from './Worker';
