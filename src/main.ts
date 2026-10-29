@@ -1,3 +1,6 @@
+import * as THREE from 'three';
+import { Crowd } from './agents/Crowd';
+import { createGrain, type GrainVariant } from './agents/grains';
 import { FactoryState } from './sim/factory';
 import { Bay } from './scene/Bay';
 import { Launchpad } from './scene/Launchpad';
@@ -17,7 +20,30 @@ const lighting = new Lighting(world.scene);
 const bay = new Bay('BAY 1 · multibay-testlot');
 const launchpad = new Launchpad();
 const products = new ProductView();
-world.scene.add(bay.group, launchpad.group, products.group);
+const crowd = new Crowd();
+world.scene.add(bay.group, launchpad.group, products.group, crowd.group);
+
+// Clicking a worker pokes them. A press that moves is an orbit drag, not a click.
+let down: { x: number; y: number; t: number } | null = null;
+const canvas = world.renderer.domElement;
+canvas.addEventListener('pointerdown', (e) => (down = { x: e.clientX, y: e.clientY, t: performance.now() }));
+canvas.addEventListener('pointerup', (e) => {
+  if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5 || performance.now() - down.t > 400) return;
+  const rect = canvas.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+  crowd.pick(ndc, world.camera)?.poke();
+});
+
+// `?lineup` parades every grain variant in front of the bay (handy for checking the models).
+if (new URLSearchParams(location.search).has('lineup')) {
+  const variants: GrainVariant[] = ['rice', 'corn', 'wheat', 'quinoa', 'millet', 'basmati', 'medic', 'hazmat'];
+  variants.forEach((variant, i) => {
+    const g = createGrain(variant);
+    g.root.position.set(-3 + i * 1.8, 0.12, 8.5);
+    g.root.rotation.y = Math.PI / 4;
+    world.scene.add(g.root);
+  });
+}
 
 // Demo scripting: timers for the auto "full cycle" so a button press can be cancelled by the next one.
 let cycleTimers: number[] = [];
@@ -54,10 +80,13 @@ world.onUpdate((dt, elapsed) => {
   lighting.update(dt, mode);
   bay.update(dt, elapsed, mode, state);
   launchpad.update(dt, elapsed, state.launchAge);
+  crowd.update(dt, elapsed, mode);
   products.update(state, elapsed);
   panel.update(mode, state.stats);
 });
 
 world.start();
 // Handy for poking at the sim from the console during development.
-(window as unknown as { __factory: FactoryState }).__factory = state;
+(window as unknown as { __factory: FactoryState; __world: World }).__factory = state;
+(window as unknown as { __world: World; __crowd: Crowd }).__world = world;
+(window as unknown as { __crowd: Crowd }).__crowd = crowd;
