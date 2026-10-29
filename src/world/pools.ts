@@ -40,8 +40,10 @@ export class InstancePool {
   private n = 0;
   private colour = new THREE.Color();
 
-  constructor(prefab: Prefab, readonly capacity: number, private tinted = false, castShadow = true) {
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.8, metalness: 0.05 });
+  constructor(prefab: Prefab, readonly capacity: number, private tinted = false, castShadow = true, unlit = false) {
+    const mat = unlit
+      ? new THREE.MeshBasicMaterial({ vertexColors: true })
+      : new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.8, metalness: 0.05 });
     this.mesh = new THREE.InstancedMesh(colouredGeometry(prefab), mat, capacity);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     if (tinted) {

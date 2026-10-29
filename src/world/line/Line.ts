@@ -10,31 +10,13 @@ import { STAGES } from '../../sim/stages';
 import { BeltSurface, beltSupports, ribbonMesh } from '../belts';
 import { IDLE_LIMBS, LOOKS, walkLimbs, workLimbs, type GrainPose, type LookName, type WorkStyle } from '../crowd';
 import { M, Prefab, StaticBatch, glowMat, setGlow } from '../kit';
-import { colouredGeometry, surfaceMatrix } from '../pools';
+import { Dyn } from '../dyn';
+import { surfaceMatrix } from '../pools';
 import type { Env, Pools } from '../types';
 import { BELT_HEIGHT, BELT_SPEED, ITEM_GAP, ITEM_LIFT, LANE_OFFSET, ROUTE, STATIONS } from './layout';
 import * as P from './prefabs';
 
-const DYN_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.7, metalness: 0.2 });
 const PAD_TOP = 0.35;
-
-/** A moving machine part: a mesh whose transform is a fixed placement times a per-frame local offset. */
-class Dyn {
-  readonly mesh: THREE.Mesh;
-  constructor(prefab: Prefab, private base: THREE.Matrix4, parent: THREE.Object3D) {
-    this.mesh = new THREE.Mesh(colouredGeometry(prefab), DYN_MAT);
-    this.mesh.matrixAutoUpdate = false;
-    this.mesh.frustumCulled = false;
-    this.mesh.castShadow = true;
-    parent.add(this.mesh);
-    this.set(new THREE.Matrix4());
-  }
-
-  set(local: THREE.Matrix4): void {
-    this.mesh.matrix.multiplyMatrices(this.base, local);
-    this.mesh.matrixWorldNeedsUpdate = true;
-  }
-}
 
 type ItemKind = 'crate' | 'box' | 'tested';
 
@@ -62,6 +44,7 @@ interface Station {
 type ExpressMode = 'inside' | 'travel' | 'reject' | 'loaded';
 
 interface Express {
+  collected?: boolean;
   product: Product;
   s: number;
   stage: number;
@@ -273,7 +256,8 @@ export class Line {
     const mat = new THREE.MeshStandardMaterial({ map: this.signTex, emissiveMap: this.signTex, emissive: 0xffffff, emissiveIntensity: 0.5, side: THREE.DoubleSide });
     this.sign = new THREE.Mesh(new THREE.PlaneGeometry(16, 4), mat);
     this.sign.matrixAutoUpdate = false;
-    const m = this.chart.matrix(-36, -17, PAD_TOP + 8, 0);
+    // Turned lines face the other way, so their sign is flipped back to face the viewer.
+    const m = this.chart.matrix(-36, -17, PAD_TOP + 8, this.zone.yaw !== 0 ? Math.PI : 0);
     this.sign.matrix.copy(m);
     this.group.add(this.sign);
     // Two posts holding the sign up.
@@ -485,9 +469,10 @@ export class Line {
               e.t = 0;
               if (p.status === 'cancelled') e.mode = 'inside';
             } else {
+              // Waits inside the dock hood for a truck; the port releases it to the rocket.
               e.mode = 'loaded';
               e.t = 0;
-              p.cap = undefined;
+              p.cap = 4.99;
             }
           }
           break;
@@ -497,8 +482,9 @@ export class Line {
           if (e.t > 1.8) this.ex.delete(id);
           break;
         case 'loaded':
-          // Carried off by the dock; the product is released to the rocket by the port.
-          if (e.t > 0.3 || p.status === 'launching') this.ex.delete(id);
+          // Hidden in the dock hood until the port's truck collects it.
+          p.cap = 4.99;
+          if (e.collected || p.status === 'launching' || !alive) this.ex.delete(id);
           break;
       }
     }
@@ -757,6 +743,42 @@ export class Line {
       out.push({ key: e.product.key, pos: tmpP.clone() });
     }
     return out;
+  }
+
+  /** A real run waiting inside the dock hood for a truck, if any. */
+  waitingAtDock(): Product | null {
+    for (const e of this.ex.values()) if (e.mode === 'loaded' && !e.collected && e.product.status === 'moving') return e.product;
+    return null;
+  }
+
+  /** A truck has taken the waiting run; the line forgets its box. */
+  collectFromDock(): void {
+    for (const e of this.ex.values()) if (e.mode === 'loaded') e.collected = true;
+  }
+
+  /** Where the dock apron is (the truck waiting spot) and which way the belt points there. */
+  dockPose(): { pos: THREE.Vector3; forward: THREE.Vector3; up: THREE.Vector3; chartX: number; chartZ: number } {
+    const endFlat = this.route.flatAt(this.route.length);
+    const tan = this.route.flatTangentAt(this.route.length - 1);
+    const x = endFlat.x + tan.x * 11;
+    const z = endFlat.y + tan.y * 11;
+    const m = this.chart.matrix(x, z, PAD_TOP, Math.atan2(tan.x, tan.y));
+    return {
+      pos: new THREE.Vector3().setFromMatrixPosition(m),
+      forward: new THREE.Vector3().setFromMatrixColumn(m, 2).normalize(),
+      up: new THREE.Vector3().setFromMatrixColumn(m, 1).normalize(),
+      chartX: x,
+      chartZ: z,
+    };
+  }
+
+  /** Where this line's supply belt arrives: the depot's belt position, plus a spot outside the pad to come from. */
+  supply(): { entry: THREE.Vector3; outside: (h: number) => THREE.Vector3; ramp: (x: number, h: number) => THREE.Vector3 } {
+    return {
+      entry: this.chart.point(-38, -11, BELT_HEIGHT),
+      outside: (h: number) => this.chart.point(-60, -11, h),
+      ramp: (x: number, h: number) => this.chart.point(x, -11, h),
+    };
   }
 
   get stationCount(): number {

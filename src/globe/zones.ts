@@ -25,15 +25,17 @@ function lineZone(i: number): Zone {
   const row = Math.floor(i / 2);
   const lat = 12 + row * 15;
   // Rows nearer the pole are narrower in longitude, so the columns move outward with latitude.
-  const lon = (i % 2 === 0 ? -1 : 1) * (19 + row * 2.75);
-  return { id: `line${i}`, kind: 'line', label: `Line ${i + 1}`, lon, lat, yaw: 0, w: 96, d: 34, index: i };
+  const lon = (i % 2 === 0 ? -1 : 1) * (22.5 + row * 2.75);
+  // Right-hand lines are turned half way round, so every line's depot faces its own supply side
+  // (crops from the west, ore from the east) and both columns' docks face the central dispatch avenue.
+  return { id: `line${i}`, kind: 'line', label: `Line ${i + 1}`, lon, lat, yaw: i % 2 === 0 ? 0 : Math.PI, w: 96, d: 34, index: i };
 }
 
 /** The master plan of the planet. Everything exists from the start; nothing is added or removed at runtime. */
 export const ZONES: Zone[] = [
   { id: 'city', kind: 'city', label: 'Night Market', lon: 0, lat: -8, yaw: 0, w: 84, d: 58 },
   ...Array.from({ length: MAX_LINES }, (_, i) => lineZone(i)),
-  { id: 'port', kind: 'port', label: 'Rocket Port', lon: 62, lat: 26, yaw: 0, w: 64, d: 84 },
+  { id: 'port', kind: 'port', label: 'Rocket Port', lon: 74, lat: 30, yaw: 0, w: 64, d: 84 },
   { id: 'farm', kind: 'farm', label: 'Agri-Biome 7', lon: -66, lat: 8, yaw: 0, w: 86, d: 104 },
   { id: 'mine', kind: 'mine', label: 'Deep Mines', lon: 66, lat: -14, yaw: 0, w: 92, d: 84 },
   { id: 'power', kind: 'power', label: 'Power Fields', lon: -4, lat: 60, yaw: 0, w: 120, d: 32 },

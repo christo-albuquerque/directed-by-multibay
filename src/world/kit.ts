@@ -47,6 +47,13 @@ export function glowMat(group: string, color: number, day = 0.15, night = 2.2): 
   return m;
 }
 
+/** Puts a hand-made material (e.g. a neon sign atlas) under the same dusk-driven glow control. */
+export function registerGlow(group: string, mat: THREE.MeshStandardMaterial, day: number, night: number): void {
+  let list = glowGroups.get(group);
+  if (!list) glowGroups.set(group, (list = []));
+  list.push({ mat, day, night });
+}
+
 /** 0 = full day, 1 = deep night for everything glowing in this group. */
 export function setGlow(group: string, night: number): void {
   const list = glowGroups.get(group);

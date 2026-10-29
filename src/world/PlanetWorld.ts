@@ -1,11 +1,17 @@
 import * as THREE from 'three';
 import type { GlobeWorld } from '../globe/GlobeWorld';
-import { ZONES } from '../globe/zones';
+import { ZONES, zoneChart } from '../globe/zones';
 import { Particles } from '../scene/Particles';
 import type { Product } from '../sim/factory';
 import { motion } from '../ui/motion';
 import { CrowdRenderer } from './crowd';
-import { M, Prefab, StaticBatch } from './kit';
+import { Farm } from './farm/Farm';
+import { buildFeeders, type Feeder } from './feeders';
+import { Mine } from './mine/Mine';
+import { Port } from './port/Port';
+import { City } from './city/City';
+import { Skyways } from './city/Skyways';
+import { M, Prefab, StaticBatch, setGlow } from './kit';
 import { Line } from './line/Line';
 import { buildPads } from './pads';
 import { InstancePool } from './pools';
@@ -32,6 +38,16 @@ export class PlanetWorld {
   private crates = new InstancePool(cratePrefab(), 1600, true);
   private boxes = new InstancePool(boxPrefab(), 1600, true);
   private crowd = new CrowdRenderer(2600);
+  readonly farm: Farm;
+  readonly mine: Mine;
+  readonly port: Port;
+  readonly city: City;
+  private skyways = new Skyways();
+  private portZone = ZONES.find((z) => z.kind === 'port')!;
+  private cityZone = ZONES.find((z) => z.kind === 'city')!;
+  private feeders: Feeder[] = [];
+  private farmZone = ZONES.find((z) => z.kind === 'farm')!;
+  private mineZone = ZONES.find((z) => z.kind === 'mine')!;
   private warn = new THREE.PointLight(0xff3322, 0, 70, 1.4);
   private marker = new THREE.Group();
   private selected: string | null = null;
@@ -42,7 +58,14 @@ export class PlanetWorld {
     const batch = new StaticBatch();
     buildPads(batch);
     for (const z of ZONES) if (z.kind === 'line') this.lines.push(new Line(z, batch));
-    world.scene.add(batch.build(), this.crates.mesh, this.boxes.mesh, this.crowd.group, this.fx.points, this.warn, this.marker);
+    this.farm = new Farm(batch);
+    this.mine = new Mine(batch);
+    this.feeders = [...buildFeeders(batch, this.lines, this.farm.out, this.mine.out), ...this.mine.feeders];
+    this.port = new Port(batch, this.lines);
+    this.city = new City(batch);
+    setGlow('sky', 0.6);
+    world.scene.add(batch.build(), this.crates.mesh, this.boxes.mesh, this.crowd.group, this.fx.points, this.warn, this.marker, this.farm.group, this.mine.group, this.port.group, this.city.group, ...this.farm.meshes, ...this.mine.meshes, ...this.port.meshes, ...this.skyways.meshes);
+    for (const f of this.feeders) world.scene.add(f.mesh);
     for (const l of this.lines) world.scene.add(l.group);
 
     // Selection marker: a pulsing ring and a tall beam over the chosen run.
@@ -99,6 +122,18 @@ export class PlanetWorld {
       l.draw(env, this.pools);
       if (!incident && l.incident) incident = l.incident;
     }
+    // Supply chain: farm, mine and the belts that carry their crates to every depot.
+    this.farm.update(env, this.world.nightAt(zoneChart(this.farmZone).center));
+    this.farm.draw(env, this.pools);
+    this.mine.update(env, this.world.nightAt(zoneChart(this.mineZone).center));
+    for (const f of this.feeders) if (!this.mine.feeders.includes(f)) f.update(dt, activity);
+    this.mine.draw(env, this.pools);
+    for (const f of this.feeders) if (!this.mine.feeders.includes(f)) f.draw(this.pools);
+    this.port.update(env, this.world.nightAt(zoneChart(this.portZone).center));
+    this.port.draw(env, this.pools);
+    this.city.update(env, this.world.nightAt(zoneChart(this.cityZone).center));
+    this.city.draw(env, this.pools);
+    this.skyways.update(dt, elapsed, env.camDist);
     this.crates.end();
     this.boxes.end();
     this.crowd.end();

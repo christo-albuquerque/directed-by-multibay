@@ -38,14 +38,20 @@ const ICE = new THREE.Color(0xdfe9f2);
 const MINE_ZONE = ZONES.find((z) => z.kind === 'mine')!;
 
 /** Depth of the open-pit mine at a direction (positive = deeper). */
-function pitDepth(dir: THREE.Vector3): number {
+export const PIT_RADIUS = 30;
+export const PIT_DEPTH = 13;
+
+export function pitDepth(dir: THREE.Vector3): number {
   const p = zoneChart(MINE_ZONE).toLocal(dir);
-  const r = Math.hypot(p.x * 0.9, p.y * 1.1);
-  const pitR = 30;
-  if (r > pitR) return 0;
-  const t = 1 - r / pitR;
-  // Terraced bowl: steps every few units so it reads as an excavated pit.
-  return Math.floor(t * 6) * 2.1 + t * 2;
+  return pitDepthAt(p.x, p.y);
+}
+
+/** Depth of the open-pit mine at chart (x, z) in the mine zone: a smooth bowl with a flat floor. */
+export function pitDepthAt(x: number, z: number): number {
+  const r = Math.hypot(x, z);
+  if (r >= PIT_RADIUS) return 0;
+  const t = 1 - r / PIT_RADIUS;
+  return PIT_DEPTH * Math.min(1, Math.pow(t * 1.35, 1.25));
 }
 
 /** Height offset below ground level R at a direction: rough low-poly relief, plus the mine pit. */
