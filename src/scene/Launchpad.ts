@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { PATH_X, TRUCK_PAD_X } from './layout';
+import { sfx } from '../ui/sfx';
+import { glowMaterial } from './glow';
 import type { Particles } from './Particles';
 import { box, cyl, makeLabel, mat, shadowAll } from './util';
 
@@ -31,6 +33,8 @@ export class Launchpad {
   private armBar: THREE.Mesh;
   private cargo: THREE.Mesh;
   private cable: THREE.Mesh;
+  private lastBeep = -1;
+  private lifted = false;
   private steamAcc = 0;
   private fireAcc = 0;
   private tmp = new THREE.Vector3();
@@ -50,7 +54,7 @@ export class Launchpad {
     this.group.add(this.arm);
 
     const pad = cyl(3.2, 3.4, 0.35, 0x8d8a85, 0, 0.1, 0, 28);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.08, 6, 36), mat(0xf4c542));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.08, 6, 36), glowMaterial(0xf4c542, 0.1, 1.4));
     ring.rotation.x = Math.PI / 2;
     ring.position.y = 0.5;
     this.group.add(pad, ring);
@@ -111,6 +115,8 @@ export class Launchpad {
   update(dt: number, elapsed: number, launchAge: number | null, fx: Particles): void {
     this.updateCrane(launchAge);
     if (launchAge === null) {
+      this.lifted = false;
+      this.lastBeep = -1;
       // Roll a fresh rocket onto the pad after liftoff.
       if (this.rocket.position.y > 1) {
         this.rocket.visible = false;
@@ -128,6 +134,11 @@ export class Launchpad {
     if (launchAge < COUNTDOWN) {
       const left = Math.ceil(COUNTDOWN - launchAge);
       this.drawBoard(launchAge < 2.2 ? 'LOADING' : `T-${left}`);
+      if (launchAge >= 2.2 && left !== this.lastBeep) {
+        this.lastBeep = left;
+        sfx.beep(left === 1 ? 1320 : 880);
+      }
+      this.lifted = false;
       this.rocket.position.x = Math.sin(elapsed * 60) * 0.02 * (launchAge / COUNTDOWN);
       // Venting steam around the pad as ignition nears.
       if (launchAge > 2.2) {
@@ -143,6 +154,10 @@ export class Launchpad {
       const t = launchAge - COUNTDOWN;
       this.drawBoard('LIFTOFF!');
       this.rocket.position.x = 0;
+      if (!this.lifted) {
+        this.lifted = true;
+        sfx.rumble(5);
+      }
       this.rocket.position.y = 0.5 + t * t * 2.2;
       this.flame.visible = true;
       this.flame.scale.set(1, 0.8 + Math.random() * 0.5, 1);

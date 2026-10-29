@@ -34,6 +34,17 @@ describe('FactoryState', () => {
     expect(s.stats.failed).toBe(1);
   });
 
+  it('counts consecutive failures and resets them on a launch', () => {
+    const s = new FactoryState();
+    s.speed = 2;
+    for (let i = 0; i < 3; i++) s.spawn({ failAt: 'lint' });
+    run(s, 2);
+    expect(s.consecutiveFailures).toBe(3);
+    s.spawn();
+    run(s, LAUNCHPAD_U / s.speed + s.launchSeconds + 1);
+    expect(s.consecutiveFailures).toBe(0);
+  });
+
   it('cancels moving products only', () => {
     const s = new FactoryState();
     s.spawn();

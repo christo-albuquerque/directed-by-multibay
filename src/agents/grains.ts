@@ -21,6 +21,50 @@ const SPECS: Record<GrainVariant, Spec> = {
   hazmat: { r: 0.29, l: 0.4, legH: 0.22, color: 0xe9e24a },
 };
 
+export interface GrainProps {
+  chopsticks: THREE.Group;
+  cup: THREE.Group;
+  paper: THREE.Mesh;
+  bubble: THREE.Mesh;
+  zzz: THREE.Sprite;
+  extinguisher: THREE.Group;
+  stretcher: THREE.Mesh;
+}
+
+let paperTex: THREE.CanvasTexture | null = null;
+function paperTexture(): THREE.CanvasTexture {
+  if (paperTex) return paperTex;
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 48;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#f4f0e4';
+  ctx.fillRect(0, 0, 64, 48);
+  ctx.fillStyle = '#3a3a3a';
+  ctx.fillRect(4, 4, 56, 8);
+  ctx.fillStyle = '#8a8a8a';
+  for (let y = 18; y < 44; y += 5) ctx.fillRect(4, y, y % 10 ? 26 : 22, 2), ctx.fillRect(34, y, 26, 2);
+  paperTex = new THREE.CanvasTexture(c);
+  paperTex.colorSpace = THREE.SRGBColorSpace;
+  return paperTex;
+}
+
+let zTex: THREE.CanvasTexture | null = null;
+function zTexture(): THREE.CanvasTexture {
+  if (zTex) return zTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 54px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Z', 32, 34);
+  zTex = new THREE.CanvasTexture(c);
+  zTex.colorSpace = THREE.SRGBColorSpace;
+  return zTex;
+}
+
 export interface GrainRig {
   variant: GrainVariant;
   /** World placement and heading. */
@@ -39,6 +83,9 @@ export interface GrainRig {
   dropped: THREE.Mesh;
   wheels: THREE.Mesh[];
   hasScooter: boolean;
+  /** Hand-held and face props, shown by the worker's current activity. */
+  props: GrainProps;
+  armLen: number;
   /** Natural height (before random scaling). */
   height: number;
   /** Height of the hip joint above the feet; used for seat-less breaks. */
@@ -178,8 +225,58 @@ export function createGrain(variant: GrainVariant): GrainRig {
     legR.position.x = 0.1;
   }
 
+  // Props, hidden until a behaviour needs them.
+  const chopsticks = new THREE.Group();
+  for (const s of [-0.02, 0.02]) {
+    const stick = mesh(geo('stick', () => new THREE.CylinderGeometry(0.012, 0.012, 0.38, 5)), mat(0x8a5a2b), s, 0, 0);
+    chopsticks.add(stick);
+  }
+  chopsticks.add(mesh(geo('noodle', () => new THREE.BoxGeometry(0.07, 0.03, 0.07)), mat(0xe9c46a), 0, 0.17, 0));
+  chopsticks.position.set(0, -armLen, 0.08);
+  chopsticks.rotation.x = -1.1;
+  chopsticks.visible = false;
+  armR.add(chopsticks);
+
+  const cup = new THREE.Group();
+  cup.add(mesh(geo('cup', () => new THREE.CylinderGeometry(0.075, 0.06, 0.13, 10)), mat(0xf5f0e6), 0, 0.02, 0), mesh(geo('coffee', () => new THREE.CylinderGeometry(0.065, 0.065, 0.01, 10)), mat(0x4b2e1f), 0, 0.085, 0));
+  cup.position.set(0, -armLen, 0.08);
+  cup.visible = false;
+  armL.add(cup);
+
+  const paper = new THREE.Mesh(geo('newspaper', () => new THREE.PlaneGeometry(0.55, 0.41)), new THREE.MeshStandardMaterial({ map: paperTexture(), side: THREE.DoubleSide, roughness: 1 }));
+  paper.position.set(0, shoulderY - 0.1, r + 0.2);
+  paper.rotation.x = -0.25;
+  paper.visible = false;
+  inner.add(paper);
+
+  const bubble = mesh(geo('bubble', () => new THREE.SphereGeometry(0.1, 10, 8)), new THREE.MeshStandardMaterial({ color: 0xff9bd0, roughness: 0.3, transparent: true, opacity: 0.85 }), 0, eyeY - r * 0.6, r * 0.95 + 0.03);
+  bubble.scale.setScalar(0.01);
+  bubble.visible = false;
+  inner.add(bubble);
+
+  const zzz = new THREE.Sprite(new THREE.SpriteMaterial({ map: zTexture(), transparent: true, depthTest: false }));
+  zzz.scale.setScalar(0.3);
+  zzz.position.set(0, top + 0.3, 0);
+  zzz.visible = false;
+  zzz.renderOrder = 11;
+  inner.add(zzz);
+
+  const extinguisher = new THREE.Group();
+  extinguisher.add(mesh(geo('ext', () => new THREE.CylinderGeometry(0.06, 0.06, 0.26, 8)), mat(0xdc2626), 0, 0, 0), mesh(geo('extNozzle', () => new THREE.ConeGeometry(0.03, 0.12, 6)), mat(0x1f2937), 0, 0.17, 0.0));
+  extinguisher.position.set(0, -armLen, 0.1);
+  extinguisher.rotation.x = Math.PI / 2;
+  extinguisher.visible = false;
+  armR.add(extinguisher);
+
+  const stretcher = mesh(geo('stretcher', () => new THREE.BoxGeometry(0.16, 0.05, 1.1)), mat(0xe8e2d4), 0, shoulderY - 0.2, -r - 0.1);
+  stretcher.rotation.x = 0.9;
+  stretcher.visible = variant === 'medic';
+  inner.add(stretcher);
+
   shadowAll(root, true, true);
   return {
+    props: { chopsticks, cup, paper, bubble, zzz, extinguisher, stretcher },
+    armLen,
     variant,
     root,
     pivot,

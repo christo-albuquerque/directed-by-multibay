@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Product } from '../sim/factory';
+import { sfx } from '../ui/sfx';
 import { HEAD_UP, IMPACT_PHASE, SHOT_PHASE, testPose } from './choreography';
 import { BELT_Y, PATH_X } from './layout';
 import type { Particles } from './Particles';
@@ -98,10 +99,12 @@ export class TestRig {
 
       if (this.prevPhase < SHOT_PHASE && phase >= SHOT_PHASE) {
         this.recoil = 1;
+        sfx.boom();
         fx.burst(MUZZLE, 10, 1.4, 1.2, new THREE.Vector3(0, 0.3, -1), { color: 0xffb84a, size0: 0.25, size1: 0.7, life: 0.45, alpha: 0.9 });
         fx.burst(MUZZLE, 8, 0.8, 1, new THREE.Vector3(0, 0.4, -0.4), { color: 0xbfc4cc, size0: 0.3, size1: 1.1, life: 1.2, alpha: 0.5 });
       }
       if (this.prevPhase < IMPACT_PHASE && phase >= IMPACT_PHASE) {
+        sfx.thud();
         const p = new THREE.Vector3(X, BELT_Y + 0.5, 0.35);
         fx.burst(p, 12, 2.2, 2, new THREE.Vector3(0, 0.6, 0.4), { color: 0xe8dcc0, size0: 0.2, size1: 0.6, life: 0.6, alpha: 0.9, gravity: -4 });
         fx.burst(p, 6, 0.8, 1, new THREE.Vector3(0, 0.5, 0.2), { color: 0xa8a29a, size0: 0.3, size1: 1.0, life: 1.1, alpha: 0.5 });

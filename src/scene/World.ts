@@ -20,10 +20,11 @@ export class World {
     container.appendChild(this.renderer.domElement);
 
     this.scene.add(this.camera);
-    this.camera.position.set(26, 22, 26);
+    const focus = new THREE.Vector3(1, 0, 3.5);
+    this.camera.position.copy(focus).add(new THREE.Vector3(24, 20, 24));
     this.camera.zoom = 1;
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(2, 0, 0);
+    this.controls.target.copy(focus);
     this.controls.enableDamping = true;
     this.controls.minZoom = 0.6;
     this.controls.maxZoom = 3;
@@ -44,7 +45,7 @@ export class World {
     const h = this.container.clientHeight || 1;
     const aspect = w / h;
     // Frame the bay snugly: ~10 world units of half-height on wide screens, widening on narrow ones.
-    const halfH = Math.max(12.5, 15 / aspect);
+    const halfH = Math.max(14.5, 17 / aspect);
     this.camera.left = -halfH * aspect;
     this.camera.right = halfH * aspect;
     this.camera.top = halfH;

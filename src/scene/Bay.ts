@@ -6,6 +6,8 @@ import { BELT_Y, PATH_X, pathPosition, TRUCK_DOCK_X, TRUCK_PAD_X } from './layou
 import type { Particles } from './Particles';
 import { TestRig } from './TestRig';
 import { Truck } from './Truck';
+import { sfx } from '../ui/sfx';
+import { glowMaterial } from './glow';
 import { Tv } from './Tv';
 import { box, cyl, makeLabel, mat, shadowAll } from './util';
 
@@ -82,7 +84,9 @@ export class Bay {
       const g = new THREE.Group();
       g.position.x = PATH_X[i];
 
-      g.add(box(3.6, 0.14, 7, 0xa9a398, 0, 0.12, -0.2), box(3.6, 0.15, 0.25, STAGE_COLOR[stage], 0, 0.12, 3.1));
+      const neon = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.15, 0.25), glowMaterial(STAGE_COLOR[stage], 0.05, 1.5));
+      neon.position.set(0, 0.2, 3.1);
+      g.add(box(3.6, 0.14, 7, 0xa9a398, 0, 0.12, -0.2), neon);
       const label = makeLabel(STAGE_TITLE[stage], { fontPx: 30 });
       label.position.set(0, 4.6, 0);
       g.add(label);
@@ -158,6 +162,7 @@ export class Bay {
     this.press.position.y = PRESS_REST + PRESS_HALF - 1.7 * dip - idleBob;
     if (dip > 0.92 && !this.pressDown) {
       this.pressDown = true;
+      sfx.thud();
       fx.burst(this.tmp.set(PATH_X[2], BELT_Y + 0.1, 0), 12, 1.6, 2, new THREE.Vector3(0, 0.4, 0), { color: 0xd9d2c4, size0: 0.25, size1: 0.8, life: 0.7, alpha: 0.7 });
     } else if (dip < 0.3) this.pressDown = false;
 

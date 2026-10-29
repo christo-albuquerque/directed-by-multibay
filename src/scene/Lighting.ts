@@ -4,6 +4,7 @@ import type { FactoryMode } from '../sim/factory';
 const DAY = { sky: new THREE.Color(0x2a3f66), sun: new THREE.Color(0xfff1d6), hemiSky: new THREE.Color(0xcfe3ff), sunI: 2.1, hemiI: 1.2 };
 const NIGHT = { sky: new THREE.Color(0x0d1430), sun: new THREE.Color(0x8fa0ff), hemiSky: new THREE.Color(0x7083c8), sunI: 0.9, hemiI: 1.0 };
 const ALERT = new THREE.Color(0xff5a4a);
+const STORM_SKY = new THREE.Color(0x1a2233);
 
 /** Day when busy, neon twilight when quiet, red tint during failures. */
 export class Lighting {
@@ -29,7 +30,8 @@ export class Lighting {
     scene.background = DAY.sky.clone();
   }
 
-  update(dt: number, mode: FactoryMode): void {
+  /** `rain` is 0..1 storm intensity; it greys and dims the day. */
+  update(dt: number, mode: FactoryMode, rain = 0): void {
     const targetNight = mode === 'idle' ? 1 : 0;
     const targetAlert = mode === 'failure' ? 1 : 0;
     const k = 1 - Math.exp(-dt * 1.8);
@@ -37,10 +39,10 @@ export class Lighting {
     this.alert += (targetAlert - this.alert) * k;
 
     const n = this.night;
-    (this.scene.background as THREE.Color).copy(DAY.sky).lerp(NIGHT.sky, n);
+    (this.scene.background as THREE.Color).copy(DAY.sky).lerp(NIGHT.sky, n).lerp(STORM_SKY, rain * 0.7 * (1 - n));
     this.sun.color.copy(DAY.sun).lerp(NIGHT.sun, n).lerp(ALERT, this.alert * 0.35);
-    this.sun.intensity = THREE.MathUtils.lerp(DAY.sunI, NIGHT.sunI, n);
+    this.sun.intensity = THREE.MathUtils.lerp(DAY.sunI, NIGHT.sunI, n) * (1 - 0.45 * rain);
     this.hemi.color.copy(DAY.hemiSky).lerp(NIGHT.hemiSky, n);
-    this.hemi.intensity = THREE.MathUtils.lerp(DAY.hemiI, NIGHT.hemiI, n);
+    this.hemi.intensity = THREE.MathUtils.lerp(DAY.hemiI, NIGHT.hemiI, n) * (1 - 0.25 * rain);
   }
 }

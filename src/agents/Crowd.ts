@@ -1,18 +1,24 @@
 import * as THREE from 'three';
 import type { FactoryMode } from '../sim/factory';
+import { PLAZA, PLAZA_RADIUS, PLAZA_TOP, type Seat } from '../scene/Courtyard';
 import { PATH_X } from '../scene/layout';
+import type { Particles } from '../scene/Particles';
 import { rng } from '../scene/util';
 import type { GrainVariant } from './grains';
 import { Worker, type Routine, type WorkStyle } from './Worker';
 
 const PLATE_TOP = 0.26;
 const APRON_TOP = 0.12;
-const COURTYARD = new THREE.Vector3(1, 0, 5.4);
+/** The rescue hut sits at the left end of the apron; crew wait in front of it. */
+export const HUT = new THREE.Vector3(-14, 0, 3.4);
+const ALARM_SECONDS = 3.5;
 
-/** Height of the floor under (x, z): raised plates under each stage, apron elsewhere. */
+/** Height of the floor under (x, z): plates under each stage, the apron, the plaza, or bare ground. */
 export function groundAt(x: number, z: number): number {
-  if (z < -3.6 || z > 3.3) return APRON_TOP;
-  return PATH_X.slice(0, 5).some((sx) => Math.abs(x - sx) < 1.8) ? PLATE_TOP : APRON_TOP;
+  if (z >= -3.6 && z <= 3.3 && PATH_X.slice(0, 5).some((sx) => Math.abs(x - sx) < 1.8)) return PLATE_TOP;
+  if (z >= -7.5 && z <= 6.5 && x >= -15 && x <= 19) return APRON_TOP;
+  if (Math.hypot(x - PLAZA.x, z - PLAZA.z) < PLAZA_RADIUS) return PLAZA_TOP;
+  return 0;
 }
 
 function v(x: number, z: number): THREE.Vector3 {
@@ -70,51 +76,85 @@ function roster(): { variant: GrainVariant; routine: Routine }[] {
   return list;
 }
 
+/** The rescue crew: two hazmat suits with extinguishers/brooms and two medics, based at the hut. */
+function crewRoster(): { variant: GrainVariant; routine: Routine }[] {
+  const crew = (variant: GrainVariant, role: 'treat' | 'spray' | 'sweep', hx: number, hz: number, ox: number, oz: number) => ({
+    variant,
+    routine: { kind: 'response', role, home: v(hx, hz), offset: new THREE.Vector2(ox, oz) } as Routine,
+  });
+  return [
+    crew('hazmat', 'spray', HUT.x + 1.6, 5.6, -1.1, 1.9),
+    crew('medic', 'treat', HUT.x + 0.2, 5.8, 1.1, 1.9),
+    crew('medic', 'treat', HUT.x - 1.2, 5.5, -0.4, 2.8),
+    crew('hazmat', 'sweep', HUT.x + 2.8, 5.2, 1.0, 2.9),
+  ];
+}
+
+export interface CrowdContext {
+  fx: Particles;
+  /** Position of the failed product, or null when nothing is broken. */
+  incident: THREE.Vector3 | null;
+}
+
 /** Owns every worker, reacts to factory mode changes, and handles click picking. */
 export class Crowd {
   readonly group = new THREE.Group();
   readonly workers: Worker[] = [];
+  /** Seconds of alarm remaining after a new commit wakes the factory. */
+  alarmLeft = 0;
   private prevMode: FactoryMode = 'idle';
   private raycaster = new THREE.Raycaster();
 
-  constructor() {
-    for (const { variant, routine } of roster()) {
+  constructor(seats: Seat[]) {
+    for (const { variant, routine } of [...roster(), ...crewRoster()]) {
       const w = new Worker(variant, routine);
       this.workers.push(w);
       this.group.add(w.rig.root);
     }
-    this.assignBreakSpots();
+    this.assignSeats(seats);
   }
 
-  /** The courtyard crowd: a loose grid in front of the bay, everyone facing the centre. */
-  private assignBreakSpots(): void {
+  /** Everyone who isn't on the rescue crew gets a break spot; they start the day there. */
+  private assignSeats(seats: Seat[]): void {
     const rand = rng(11);
-    const spots: THREE.Vector3[] = [];
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 10; col++) spots.push(v(-5.5 + col * 1.45 + (row % 2) * 0.5, 4.7 + row * 0.8));
-    }
-    for (let i = spots.length - 1; i > 0; i--) {
+    const pool = [...seats];
+    for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(rand() * (i + 1));
-      [spots[i], spots[j]] = [spots[j], spots[i]];
+      [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    this.workers.forEach((w, i) => {
-      const s = spots[i];
-      w.breakSpot.copy(s);
-      w.breakFace = Math.atan2(COURTYARD.x - s.x, COURTYARD.z - s.z);
-      w.placeAt(s, w.breakFace);
-      w.pos.y = APRON_TOP;
-    });
+    for (const w of this.workers) {
+      if (w.routine.kind === 'response') {
+        w.placeAt(w.routine.home, Math.PI / 4);
+        continue;
+      }
+      const s = pool.pop();
+      if (!s) continue;
+      w.seat = s;
+      w.placeAt(s.pos, s.face);
+    }
   }
 
-  update(dt: number, elapsed: number, mode: FactoryMode): void {
+  update(dt: number, elapsed: number, mode: FactoryMode, ctx: CrowdContext): void {
     if (mode !== this.prevMode) {
       const wasIdle = this.prevMode === 'idle';
       const idle = mode === 'idle';
-      if (wasIdle !== idle) for (const w of this.workers) w.setIdle(idle, wasIdle);
-      if (mode === 'failure') for (const w of this.workers) if (w.variant === 'wheat') w.react('gasp');
+      if (wasIdle !== idle) {
+        for (const w of this.workers) w.setIdle(idle, wasIdle);
+        if (wasIdle) this.alarmLeft = ALARM_SECONDS;
+      }
+      if (mode === 'failure') {
+        for (const w of this.workers) {
+          if (w.variant === 'wheat') {
+            w.react('gasp');
+            w.spray(7);
+          }
+        }
+      }
       this.prevMode = mode;
     }
-    for (const w of this.workers) w.update(dt, elapsed, groundAt);
+    this.alarmLeft = Math.max(0, this.alarmLeft - dt);
+    const wctx = { ground: groundAt, fx: ctx.fx, incident: ctx.incident };
+    for (const w of this.workers) w.update(dt, elapsed, wctx);
   }
 
   /** Returns the worker under the pointer (normalised device coords), if any. */

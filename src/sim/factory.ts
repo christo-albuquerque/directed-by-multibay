@@ -36,8 +36,10 @@ export class FactoryState {
   stats: FactoryStats = { succeeded: 0, failed: 0, cancelled: 0 };
   /** Stages travelled per second. */
   speed = 0.35;
-  /** How long wreckage stays on screen. */
-  lingerSeconds = 6;
+  /** Failures since the last successful launch; drives the storm clouds. */
+  consecutiveFailures = 0;
+  /** How long wreckage stays on screen (long enough for the rescue crew to arrive and work). */
+  lingerSeconds = 9;
   launchSeconds = 7;
   private nextId = 1;
 
@@ -74,6 +76,7 @@ export class FactoryState {
           p.status = 'failed';
           p.age = 0;
           this.stats.failed++;
+          this.consecutiveFailures++;
         } else if (p.u >= LAUNCHPAD_U) {
           p.u = LAUNCHPAD_U;
           p.status = 'launching';
@@ -84,6 +87,7 @@ export class FactoryState {
         if (p.status === 'launching' && p.age >= this.launchSeconds) {
           p.status = 'launched';
           this.stats.succeeded++;
+          this.consecutiveFailures = 0;
         }
       }
     }

@@ -3,7 +3,8 @@ import './panel.css';
 
 export interface DemoAction {
   label: string;
-  run: () => void;
+  /** May return a new label, for toggle buttons. */
+  run: () => void | string;
   wide?: boolean;
 }
 
@@ -27,7 +28,10 @@ export class DemoPanel {
       const b = document.createElement('button');
       b.textContent = a.label;
       if (a.wide) b.className = 'wide';
-      b.addEventListener('click', a.run);
+      b.addEventListener('click', () => {
+        const label = a.run();
+        if (typeof label === 'string') b.textContent = label;
+      });
       grid.appendChild(b);
     }
     parent.appendChild(root);
