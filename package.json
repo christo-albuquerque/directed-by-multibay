@@ -1,0 +1,25 @@
+{
+  "name": "directed-by-multibay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A 3D factory on Kepler-22b that visualizes GitHub Actions builds and releases.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run --passWithNoTests",
+    "license-check": "license-checker-rseidelsohn --production --excludePrivatePackages --summary --failOn \"GPL;LGPL;AGPL;SSPL;EUPL;MPL\""
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "license-checker-rseidelsohn": "^4.4.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
