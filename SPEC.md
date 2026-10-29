@@ -1,5 +1,13 @@
 # DirectedByMultiBay
 
+> **Status (milestones 0-8 complete).** The original spec below is kept as written. What differs in the build:
+> - Each repo has its **own launchpad** (and rescue hut, alarm and crew), not one shared central pad.
+> - Rendering is vanilla TypeScript + Three.js with a small DOM overlay (no React).
+> - Added: click-to-inspect panel, per-repo bays with an in-page repo editor, reduced-motion mode, adaptive render
+>   quality, courier drones for PR builds, a rescue hut and crew, and a screen-reader status line.
+> - **Not built:** matrix builds as parallel conveyor lanes; a status.json push model for tokenless polling.
+> - See `THIRD_PARTY_LICENSES.md` for the license audit (one runtime dependency, `three`, MIT).
+
 > A living 3D factory on the planet **Kepler-22b** that visualizes real GitHub Actions builds and releases across multiple repositories.
 
 A tiny workforce of grains (rice, corn, wheat, quinoa, millet, basmati) hauls dependencies, runs build machines, brutally tests products, and launches releases into orbit by rocket. When nothing is running, everybody takes a ramen-and-coffee break. It is both a toy and a genuinely useful dashboard: click any product and see exactly which pipeline stage it is in.

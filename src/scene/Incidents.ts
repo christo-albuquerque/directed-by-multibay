@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { HUT } from '../agents/Crowd';
 import type { FactoryState, ProductStatus } from '../sim/factory';
+import { motion } from '../ui/motion';
 import { sfx } from '../ui/sfx';
 import { BELT_Y, PATH_X, pathPosition } from './layout';
 import type { Emitter } from './Particles';
@@ -77,12 +78,12 @@ export class Incidents {
       this.incident = pathPosition(failed.u, this.incident ?? new THREE.Vector3());
       this.incidentAge = failed.age;
       this.emitSmoke(dt, failed.failAt ?? 0, fx);
-      const flick = 0.55 + 0.45 * Math.sin(elapsed * 22);
+      const flick = motion.reduced ? 0.7 : 0.55 + 0.45 * Math.sin(elapsed * 22);
       this.light.position.set(this.incident.x, 2.2, this.incident.z + 0.5);
       this.light.intensity = 14 * flick;
     }
 
-    (this.roofLight.material as THREE.MeshStandardMaterial).emissiveIntensity = failed ? 0.4 + 1.8 * (0.5 + 0.5 * Math.sin(elapsed * 12)) : 0.1;
+    (this.roofLight.material as THREE.MeshStandardMaterial).emissiveIntensity = failed ? 0.4 + 1.8 * (motion.reduced ? 0.6 : 0.5 + 0.5 * Math.sin(elapsed * 12)) : 0.1;
 
     // Stretcher pops in once the crew has arrived, and packs away afterwards.
     const wantStretcher = !!failed && this.incidentAge > 2.2;

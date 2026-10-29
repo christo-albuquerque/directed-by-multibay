@@ -40,7 +40,23 @@ export class DemoPanel {
     root.innerHTML = `<header><strong>DEMO PANEL</strong><span class="mode" data-mode="idle">idle</span></header><label class="target" style="display:none">Demo bay <select></select></label><div class="grid"></div><div class="stats"></div>`;
     this.targetEl = root.querySelector('select') as HTMLSelectElement;
     const header = root.querySelector('header') as HTMLElement;
-    header.addEventListener('click', () => root.classList.toggle('collapsed'));
+    header.tabIndex = 0;
+    header.setAttribute('role', 'button');
+    header.setAttribute('aria-expanded', 'true');
+    header.title = 'Show or hide the demo controls';
+    const toggle = (): void => {
+      const collapsed = root.classList.toggle('collapsed');
+      header.setAttribute('aria-expanded', String(!collapsed));
+    };
+    header.addEventListener('click', toggle);
+    header.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggle();
+      }
+    });
+    // Phones start with the panel tucked away so the factory is visible.
+    if (window.innerWidth < 700) toggle();
     this.modeEl = root.querySelector('.mode') as HTMLElement;
     this.statsEl = root.querySelector('.stats') as HTMLElement;
 

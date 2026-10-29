@@ -43,7 +43,7 @@ export class BayUnit {
     state.update(dt);
     const mode = state.mode;
     this.bay.update(dt, elapsed, mode, state, this.fx, night);
-    this.launchpad.update(dt, elapsed, state.launchAge, this.fx);
+    this.launchpad.update(dt, elapsed, state.launchAge, this.fx, state.launchKind);
     this.incidents.update(dt, elapsed, state, this.fx);
     const incident = this.incidents.incident ? this.worldIncident.copy(this.incidents.incident).add(this.shift) : null;
     this.crowd.update(dt, elapsed, mode, { fx: baseFx, incident, activity: state.activity });

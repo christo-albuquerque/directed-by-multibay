@@ -137,7 +137,16 @@ export class LivePanel {
       const li = el('li', `run ${runState(r)}${r.key === selectedKey ? ' selected' : ''}`);
       const where = multi ? `${r.repo.split('/')[1]} · ` : '';
       li.append(el('span', 'dot'), el('span', 'num', `#${r.runNumber}`), el('span', 'title', `${where}${r.branch} · ${r.title}`));
+      li.tabIndex = 0;
+      li.setAttribute('role', 'button');
+      li.setAttribute('aria-pressed', String(r.key === selectedKey));
       li.addEventListener('click', () => this.handlers.onSelect(r.key));
+      li.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this.handlers.onSelect(r.key);
+        }
+      });
       this.list.appendChild(li);
     }
   }

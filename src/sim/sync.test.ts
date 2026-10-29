@@ -74,6 +74,20 @@ describe('FactoryState.syncRuns', () => {
     expect(s.products).toHaveLength(1);
   });
 
+  it('sends pull-request builds out by drone and everything else by rocket', () => {
+    const s = new FactoryState();
+    s.speed = 3;
+    s.spawn({ pr: true });
+    run(s, 4);
+    expect(s.launchKind).toBe('drone');
+    const live = new FactoryState();
+    live.syncRuns([], NOW);
+    live.syncRuns([makeRun(7, { event: 'pull_request', status: 'completed', conclusion: 'success', updatedAt: NOW - 500 }, [job([['Run npm ci', 'completed', 'success']], { status: 'completed', conclusion: 'success' })])], NOW);
+    run(live, 8);
+    expect(live.launchKind).toBe('drone');
+    expect(new FactoryState().launchKind).toBe('rocket');
+  });
+
   it('only demo runs are cancelled by cancelAll', () => {
     const s = new FactoryState();
     s.syncRuns([makeRun(6)], NOW);

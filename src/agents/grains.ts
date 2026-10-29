@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { shadowAll } from '../scene/util';
 
 export type GrainVariant = 'rice' | 'corn' | 'wheat' | 'quinoa' | 'millet' | 'basmati' | 'medic' | 'hazmat';
 
@@ -273,7 +272,14 @@ export function createGrain(variant: GrainVariant): GrainRig {
   stretcher.visible = variant === 'medic';
   inner.add(stretcher);
 
-  shadowAll(root, true, true);
+  // Only the torso casts a shadow: shadows from hands, eyes and props are invisible at this size but cost
+  // a draw call each, which adds up across a few hundred workers.
+  root.traverse((o) => {
+    if (o instanceof THREE.Mesh) {
+      o.castShadow = o.geometry instanceof THREE.CapsuleGeometry;
+      o.receiveShadow = false;
+    }
+  });
   return {
     props: { chopsticks, cup, paper, bubble, zzz, extinguisher, stretcher },
     armLen,

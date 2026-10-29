@@ -25,6 +25,8 @@ export class ProductPanel {
 
   constructor(parent: HTMLElement, private onClose: () => void) {
     this.root.style.display = 'none';
+    this.root.setAttribute('role', 'region');
+    this.root.setAttribute('aria-label', 'Selected run details');
     parent.appendChild(this.root);
   }
 
@@ -46,6 +48,7 @@ export class ProductPanel {
     const status = product?.status ?? (run?.status === 'completed' ? (run.conclusion === 'success' ? 'success' : run.conclusion === 'cancelled' ? 'cancelled' : 'failure') : run?.status ?? 'unknown');
     const head = el('div', 'pp-head');
     const close = el('button', 'pp-close', '✕');
+    close.setAttribute('aria-label', 'Close run details');
     close.addEventListener('click', () => this.onClose());
     head.append(el('span', 'pp-title', product?.label ?? `${run?.repo.split('/')[1]} #${run?.runNumber}`), el('span', `pp-chip ${status}`, status.replace('_', ' ')), close);
     this.root.appendChild(head);

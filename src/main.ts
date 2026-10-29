@@ -12,9 +12,24 @@ import type { NormalizedRun } from './sim/runs';
 import { DemoPanel } from './ui/DemoPanel';
 import { LivePanel } from './ui/LivePanel';
 import { ProductPanel } from './ui/ProductPanel';
+import { motion } from './ui/motion';
 import { sfx } from './ui/sfx';
 
+function webglAvailable(): boolean {
+  try {
+    const c = document.createElement('canvas');
+    return !!(c.getContext('webgl2') ?? c.getContext('webgl'));
+  } catch {
+    return false;
+  }
+}
+
 async function boot(): Promise<void> {
+  if (!webglAvailable()) {
+    const fallback = document.getElementById('fallback');
+    if (fallback) fallback.style.display = 'flex';
+    return;
+  }
   const config = loadConfig();
   const defaults = await loadDefaultRepos(import.meta.env.BASE_URL);
   let repos = resolveRepos(config.urlRepos, loadSavedRepos(), defaults);
@@ -55,7 +70,12 @@ async function boot(): Promise<void> {
   const select = (key: string | null): void => {
     selectedKey = key;
     factory.setSelected(key);
+    // On phones the details panel replaces the demo panel while something is selected.
+    document.body.classList.toggle('has-selection', key !== null);
   };
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && selectedKey && !(e.target instanceof HTMLInputElement)) select(null);
+  });
 
   const livePanel = new LivePanel(
     document.body,
@@ -108,10 +128,12 @@ async function boot(): Promise<void> {
     { label: '✖ Fail @ lint', run: () => void target().spawn({ failAt: 'lint' }) },
     { label: '✖ Fail @ build', run: () => void target().spawn({ failAt: 'build' }) },
     { label: '✖ Fail @ test', run: () => void target().spawn({ failAt: 'test' }) },
+    { label: '🚁 PR drone run', run: () => void target().spawn({ pr: true, label: 'pr-drone' }) },
     { label: '⏹ Cancel all', run: () => target().cancelAll() },
     { label: '⚡ Speed ×2', run: () => void (target().speed = target().speed > 0.4 ? 0.35 : 0.8) },
     { label: '☔ Storm: off', run: () => ((factory.forceStorm = !factory.forceStorm), factory.forceStorm ? '☔ Storm: on' : '☔ Storm: off') },
     { label: sfx.muted ? '🔇 Sound: off' : '🔊 Sound: on', run: () => (sfx.setMuted(!sfx.muted), sfx.muted ? '🔇 Sound: off' : '🔊 Sound: on') },
+    { label: motion.reduced ? '🐢 Motion: reduced' : '🎬 Motion: full', run: () => (motion.set(!motion.reduced), world.controls.enableDamping = !motion.reduced, motion.reduced ? '🐢 Motion: reduced' : '🎬 Motion: full') },
     { label: '🎬 Full cycle', run: fullCycle, wide: true },
   ]);
 
@@ -170,6 +192,20 @@ async function boot(): Promise<void> {
     });
   }
 
+  // --- screen-reader summary -------------------------------------------------
+  const srStatus = document.getElementById('sr-status');
+  let lastSr = '';
+  const announce = (): void => {
+    if (!srStatus) return;
+    const busy = factory.units.filter((u) => u.state.mode !== 'idle').length;
+    const s = factory.stats;
+    const text = `Factory ${factory.mode}. ${busy} of ${factory.units.length} bays busy. Launched ${s.succeeded}, failed ${s.failed}, cancelled ${s.cancelled}.`;
+    if (text !== lastSr) {
+      lastSr = text;
+      srStatus.textContent = text;
+    }
+  };
+
   // --- main loop -----------------------------------------------------------
   let lastUiTick = 0;
   world.onUpdate((dt, elapsed) => {
@@ -179,6 +215,7 @@ async function boot(): Promise<void> {
 
     if (elapsed - lastUiTick > 0.25) {
       lastUiTick = elapsed;
+      announce();
       const now = Date.now();
       livePanel.update(pollerMeta, latestRuns, selectedKey, now);
       const found = factory.findProduct(selectedKey);

@@ -20,6 +20,8 @@ export interface Product {
   age: number;
   /** For live products: how far the real run has got. The product travels there and waits. */
   target?: number;
+  /** Pull-request style build: goes out on a courier drone instead of a rocket. Demo runs set this directly. */
+  pr?: boolean;
   /** Latest snapshot of the real GitHub run behind this product. */
   run?: NormalizedRun;
   progress?: RunProgress;
@@ -28,6 +30,8 @@ export interface Product {
 export interface SpawnOptions {
   failAt?: StageName | null;
   label?: string;
+  /** Launch on a courier drone (a pull-request build) rather than a rocket. */
+  pr?: boolean;
 }
 
 export interface FactoryStats {
@@ -68,6 +72,7 @@ export class FactoryState {
       status: 'moving',
       failAt,
       age: 0,
+      pr: opts.pr,
     };
     this.products.push(product);
     return product;
@@ -186,6 +191,12 @@ export class FactoryState {
     let load = 0.04 * this.recentRuns;
     for (const p of this.products) if (p.status === 'moving' || p.status === 'launching') load += p.run ? 0.3 : 0.55;
     return Math.min(1, load);
+  }
+
+  /** What leaves the pad: main/tag builds go by rocket, pull-request builds by courier drone. */
+  get launchKind(): 'rocket' | 'drone' {
+    const p = this.products.find((x) => x.status === 'launching');
+    return p && (p.pr || p.run?.event === 'pull_request') ? 'drone' : 'rocket';
   }
 
   /** Age of the oldest product currently launching, or null. */

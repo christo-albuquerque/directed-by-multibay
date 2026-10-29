@@ -105,7 +105,16 @@
 .product-panel a { color: #7dd3fc; }
 .product-panel .pp-note { opacity: 0.6; margin-top: 8px; }
 
+@media (prefers-reduced-motion: reduce) {
+  .live-runs .run.in_progress .dot, .live-dot { animation: none; }
+}
+
 @media (max-width: 700px) {
+  .live-panel { top: 40px; left: 12px; width: calc(100vw - 24px); padding: 8px 10px; font-size: 11px; }
   .live-panel .live-runs, .live-panel .live-meter { display: none; }
-  .product-panel { bottom: 12px; max-height: 40vh; }
+  .live-panel .live-hint { display: none; }
+  .live-panel .live-buttons { margin-top: 6px; }
+  .product-panel { left: 12px; right: 12px; width: auto; bottom: 12px; max-height: 42vh; }
+  /* While a run is selected the details panel takes the bottom of the screen. */
+  body.has-selection .demo-panel { display: none; }
 }

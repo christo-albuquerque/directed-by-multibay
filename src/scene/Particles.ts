@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { motion } from '../ui/motion';
 
 export interface EmitOpts {
   life?: number;
@@ -94,6 +95,7 @@ export class Particles implements Emitter {
   }
 
   emit(p: THREE.Vector3, v: THREE.Vector3, o: EmitOpts = {}): void {
+    if (motion.reduced && Math.random() > 0.35) return;
     const i = this.next;
     this.next = (this.next + 1) % CAPACITY;
     this.pos.set([p.x, p.y, p.z], i * 3);

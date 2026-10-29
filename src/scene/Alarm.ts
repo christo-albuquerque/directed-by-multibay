@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { motion } from '../ui/motion';
 import { sfx } from '../ui/sfx';
 import { box, cyl, makeLabel, shadowAll } from './util';
 
@@ -43,8 +44,9 @@ export class Alarm {
     if (siren && !this.wasOn) sfx.siren(3.2);
     this.wasOn = siren;
     this.level += ((on ? 1 : 0) - this.level) * (1 - Math.exp(-dt * 6));
-    this.spinner.rotation.y += dt * (2 + this.level * 8);
-    const pulse = 0.5 + 0.5 * Math.sin(elapsed * 14);
+    this.spinner.rotation.y += dt * (motion.reduced ? 1 : 2 + this.level * 8);
+    // Reduced motion: a steady glow instead of a strobe.
+    const pulse = motion.reduced ? 0.6 : 0.5 + 0.5 * Math.sin(elapsed * 14);
     (this.dome.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.1 + this.level * (0.8 + pulse * 1.4);
     this.light.intensity = this.level * (10 + pulse * 25);
     this.beamMat.opacity = this.level * 0.35;

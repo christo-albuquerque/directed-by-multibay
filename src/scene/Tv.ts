@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { FactoryMode, FactoryStats } from '../sim/factory';
+import { motion } from '../ui/motion';
 import { box } from './util';
 
 export type TvChannel = 'metrics' | 'lab';
@@ -56,7 +57,7 @@ export class Tv {
     const c = this.ctx;
     c.fillStyle = '#000';
     c.fillRect(0, 0, W, H);
-    const glitch = Math.sin(t * 40) > 0.85 ? (Math.random() - 0.5) * 8 : 0;
+    const glitch = !motion.reduced && Math.sin(t * 40) > 0.85 ? (Math.random() - 0.5) * 8 : 0;
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.fillStyle = '#e8e2d6';
@@ -67,7 +68,7 @@ export class Tv {
     c.fillText('MULTIBAY', W / 2 - glitch + 1.5, H / 2 + 22);
     c.fillStyle = '#f5f0e6';
     c.fillText('MULTIBAY', W / 2 - glitch, H / 2 + 20);
-    if (Math.sin(t * 40) > 0.9) {
+    if (!motion.reduced && Math.sin(t * 40) > 0.9) {
       c.fillStyle = 'rgba(255,255,255,0.12)';
       c.fillRect(0, Math.random() * H, W, 6);
     }

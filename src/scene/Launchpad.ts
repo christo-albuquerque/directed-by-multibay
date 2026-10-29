@@ -15,6 +15,10 @@ const TRUCK_VEC = new THREE.Vector2(TRUCK_PAD_X - PAD_X - PIVOT.x, -PIVOT.z);
 const ROCKET_VEC = new THREE.Vector2(-PIVOT.x, -PIVOT.z);
 const TRUCK_ANGLE = Math.atan2(TRUCK_VEC.y, TRUCK_VEC.x);
 const ROCKET_ANGLE = Math.atan2(ROCKET_VEC.y, ROCKET_VEC.x);
+/** Pull-request builds go out on a courier drone parked beside the rocket. */
+const DRONE_POS = new THREE.Vector2(1.9, 1.5);
+const DRONE_VEC = new THREE.Vector2(DRONE_POS.x - PIVOT.x, DRONE_POS.y - PIVOT.z);
+const DRONE_ANGLE = Math.atan2(DRONE_VEC.y, DRONE_VEC.x);
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * Math.min(1, Math.max(0, t));
 const ease = (t: number): number => t * t * (3 - 2 * t);
@@ -33,6 +37,11 @@ export class Launchpad {
   private armBar: THREE.Mesh;
   private cargo: THREE.Mesh;
   private cable: THREE.Mesh;
+  private drone = new THREE.Group();
+  private droneCargo: THREE.Mesh;
+  private rotors: THREE.Mesh[] = [];
+  private droneAway = false;
+  private droneRespawn = 1;
   private lastBeep = -1;
   private lifted = false;
   private steamAcc = 0;
@@ -91,6 +100,26 @@ export class Launchpad {
     this.rocket.add(this.flame);
     this.group.add(this.rocket);
 
+    // Courier drone: four rotors, skids and a cargo box that appears once loaded.
+    this.drone.position.set(DRONE_POS.x, 0.5, DRONE_POS.y);
+    this.drone.add(box(0.7, 0.26, 0.7, 0x475569, 0, 0.3), box(0.74, 0.07, 0.74, 0x35e0ff, 0, 0.45));
+    for (const s of [-1, 1]) {
+      this.drone.add(box(0.08, 0.06, 1.0, 0x1f2937, s * 0.28, 0.05));
+      for (const t of [-1, 1]) {
+        const arm = box(0.9, 0.06, 0.08, 0x334155, s * 0.45, 0.42, t * 0.45);
+        arm.rotation.y = t * s * 0.7;
+        this.drone.add(arm);
+        const rotor = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.02, 14), new THREE.MeshBasicMaterial({ color: 0x1f2937, transparent: true, opacity: 0.45 }));
+        rotor.position.set(s * 0.78, 0.55, t * 0.78);
+        this.rotors.push(rotor);
+        this.drone.add(rotor);
+      }
+    }
+    this.droneCargo = box(0.42, 0.42, 0.42, 0xc89b5f, 0, -0.18);
+    this.droneCargo.visible = false;
+    this.drone.add(this.droneCargo);
+    this.group.add(this.drone);
+
     // LED scoreboard.
     const canvas = document.createElement('canvas');
     canvas.width = 256;
@@ -112,8 +141,15 @@ export class Launchpad {
   }
 
   /** `launchAge` = seconds since a product began launching, or null when nothing is launching. */
-  update(dt: number, elapsed: number, launchAge: number | null, fx: Emitter): void {
-    this.updateCrane(launchAge);
+  update(dt: number, elapsed: number, launchAge: number | null, fx: Emitter, kind: 'rocket' | 'drone' = 'rocket'): void {
+    const droneAge = kind === 'drone' ? launchAge : null;
+    this.updateCrane(launchAge, kind);
+    this.updateDrone(dt, droneAge, fx);
+    if (droneAge !== null) {
+      // The rocket waits on the pad while the courier drone takes this one.
+      this.drawBoard(droneAge < 2.2 ? 'LOADING' : 'DRONE AWAY');
+      return;
+    }
     if (launchAge === null) {
       this.lifted = false;
       this.lastBeep = -1;
@@ -173,9 +209,43 @@ export class Launchpad {
     }
   }
 
-  /** Swings the box from the truck bed into the rocket during the countdown. */
-  private updateCrane(age: number | null): void {
+  /** The drone spins up, takes the box and flies off over the horizon. Reset (and pop back in) when idle. */
+  private updateDrone(dt: number, age: number | null, fx: Emitter): void {
+    const g = this.drone;
+    if (age === null) {
+      if (this.droneAway) {
+        this.droneAway = false;
+        g.position.set(DRONE_POS.x, 0.5, DRONE_POS.y);
+        g.rotation.set(0, 0, 0);
+        this.droneRespawn = 0;
+      }
+      this.droneRespawn = Math.min(1, this.droneRespawn + dt * 0.8);
+      g.scale.setScalar(Math.max(0.01, this.droneRespawn));
+      this.droneCargo.visible = false;
+      for (const r of this.rotors) r.rotation.y += dt * 2;
+      return;
+    }
+    const spin = age > 1.6 ? 45 : 3;
+    for (const r of this.rotors) r.rotation.y += dt * spin;
+    this.droneCargo.visible = age >= 2.4;
+    const t = age - 2.6;
+    if (t <= 0) return;
+    this.droneAway = true;
+    const lift = ease(Math.min(1, t / 1.2)) * 1.8;
+    const fly = Math.max(0, t - 1.0);
+    g.position.set(DRONE_POS.x + fly * fly * 1.6 + fly * 0.8, 0.5 + lift + fly * 1.2, DRONE_POS.y - fly * fly * 2.0 - fly * 0.9);
+    g.rotation.z = -Math.min(0.4, fly * 0.5);
+    g.rotation.y = Math.min(0.8, fly * 0.4);
+    if (lift < 1.7 && Math.random() < dt * 40) {
+      fx.emit(this.tmp.set(this.group.position.x + g.position.x + (Math.random() - 0.5) * 1.2, 0.5, g.position.z + (Math.random() - 0.5) * 1.2), this.tmp2.set((Math.random() - 0.5) * 2, 0.3, (Math.random() - 0.5) * 2), { color: 0xcfc7b8, size0: 0.25, size1: 0.9, life: 0.9, alpha: 0.45, drag: 1.2 });
+    }
+  }
+
+  /** Swings the box from the truck bed into the rocket (or onto the drone) during the countdown. */
+  private updateCrane(age: number | null, kind: 'rocket' | 'drone'): void {
     const a = age ?? 99;
+    const destAngle = kind === 'drone' ? DRONE_ANGLE : ROCKET_ANGLE;
+    const destLen = (kind === 'drone' ? DRONE_VEC : ROCKET_VEC).length();
     let angle = TRUCK_ANGLE;
     let len = TRUCK_VEC.length();
     let boxY = 1.0;
@@ -185,15 +255,15 @@ export class Launchpad {
       boxY = lerp(1.0, 2.3, ease((a - 0.8) / 0.6));
     } else if (a < 2.4) {
       const t = ease((a - 1.4) / 1.0);
-      angle = lerp(TRUCK_ANGLE, ROCKET_ANGLE, t);
-      len = lerp(TRUCK_VEC.length(), ROCKET_VEC.length(), t);
-      boxY = 2.3;
+      angle = lerp(TRUCK_ANGLE, destAngle, t);
+      len = lerp(TRUCK_VEC.length(), destLen, t);
+      boxY = kind === 'drone' ? lerp(2.3, 0.9, ease((a - 1.4) / 1.0)) : 2.3;
     } else {
-      // Box is inside the rocket; the arm returns to the truck side.
+      // Box is inside the rocket (or on the drone); the arm returns to the truck side.
       const t = ease((a - 2.8) / 0.8);
-      angle = lerp(ROCKET_ANGLE, TRUCK_ANGLE, t);
-      len = lerp(ROCKET_VEC.length(), TRUCK_VEC.length(), t);
-      boxY = 2.3;
+      angle = lerp(destAngle, TRUCK_ANGLE, t);
+      len = lerp(destLen, TRUCK_VEC.length(), t);
+      boxY = kind === 'drone' ? 0.9 : 2.3;
     }
     this.arm.rotation.y = -angle;
     this.armBar.scale.x = len;

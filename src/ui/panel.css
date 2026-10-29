@@ -49,6 +49,9 @@
 .demo-panel button.wide { grid-column: 1 / -1; background: #7a3b12; }
 .demo-panel button.wide:hover { background: #944a1a; }
 .demo-panel .stats { margin-top: 8px; opacity: 0.75; font-size: 11px; }
+@media (max-width: 700px) {
+  .demo-panel { right: 12px; bottom: 12px; width: min(232px, calc(100vw - 24px)); }
+}
 .demo-panel.collapsed .grid,
 .demo-panel.collapsed .stats { display: none; }
 .demo-panel.collapsed header { margin-bottom: 0; }
