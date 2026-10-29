@@ -11,6 +11,8 @@ import { Mine } from './mine/Mine';
 import { Port } from './port/Port';
 import { City } from './city/City';
 import { Skyways } from './city/Skyways';
+import { Scatter } from './scatter';
+import { Weather } from './weather';
 import { M, Prefab, StaticBatch, setGlow } from './kit';
 import { Line } from './line/Line';
 import { buildPads } from './pads';
@@ -43,6 +45,9 @@ export class PlanetWorld {
   readonly port: Port;
   readonly city: City;
   private skyways = new Skyways();
+  private scatter: Scatter;
+  private launching = new Map<Line, boolean>();
+  readonly weather: Weather;
   private portZone = ZONES.find((z) => z.kind === 'port')!;
   private cityZone = ZONES.find((z) => z.kind === 'city')!;
   private feeders: Feeder[] = [];
@@ -63,6 +68,9 @@ export class PlanetWorld {
     this.feeders = [...buildFeeders(batch, this.lines, this.farm.out, this.mine.out), ...this.mine.feeders];
     this.port = new Port(batch, this.lines);
     this.city = new City(batch);
+    this.weather = new Weather(world);
+    this.scatter = new Scatter(batch, this.lines.map((l) => ({ dir: l.plazaDir(), r: 8 })));
+    world.scene.add(this.scatter.group);
     setGlow('sky', 0.6);
     world.scene.add(batch.build(), this.crates.mesh, this.boxes.mesh, this.crowd.group, this.fx.points, this.warn, this.marker, this.farm.group, this.mine.group, this.port.group, this.city.group, ...this.farm.meshes, ...this.mine.meshes, ...this.port.meshes, ...this.skyways.meshes);
     for (const f of this.feeders) world.scene.add(f.mesh);
@@ -110,6 +118,26 @@ export class PlanetWorld {
     return best;
   }
 
+  /** Pokes the grain nearest the pointer (within a few pixels). Returns whether one was hit. */
+  pokeGrain(ndc: THREE.Vector2, camera: THREE.PerspectiveCamera): boolean {
+    let best: { line: Line; id: number } | null = null;
+    let bestD = 0.035;
+    for (const l of this.lines) {
+      for (const g of l.grainPickables()) {
+        this.v.copy(g.pos).project(camera);
+        if (this.v.z > 1) continue;
+        const d = Math.hypot(this.v.x - ndc.x, (this.v.y - ndc.y) * 0.9);
+        if (d < bestD) {
+          bestD = d;
+          best = { line: l, id: g.id };
+        }
+      }
+    }
+    if (!best) return false;
+    best.line.folk.poke(best.id);
+    return true;
+  }
+
   update(dt: number, elapsed: number, activity: number): void {
     const env: Env = { dt, elapsed, activity, fx: this.fx, focus: this.world.controls.focus, camDist: this.world.controls.view.dist };
     this.crates.begin();
@@ -118,7 +146,11 @@ export class PlanetWorld {
     let incident: THREE.Vector3 | null = null;
     for (const l of this.lines) {
       const night = this.world.nightAt(l.chart.center);
+      const wasLaunching = this.launching.get(l) ?? false;
       l.update(env, night);
+      const nowLaunching = l.state.products.some((p) => p.status === 'launching');
+      if (nowLaunching && !wasLaunching) l.celebrate();
+      this.launching.set(l, nowLaunching);
       l.draw(env, this.pools);
       if (!incident && l.incident) incident = l.incident;
     }
@@ -134,6 +166,10 @@ export class PlanetWorld {
     this.city.update(env, this.world.nightAt(zoneChart(this.cityZone).center));
     this.city.draw(env, this.pools);
     this.skyways.update(dt, elapsed, env.camDist);
+    this.weather.update(dt, elapsed);
+    setGlow('wild', this.world.nightAt(this.world.controls.focus));
+    // Slow machines drop the far-away forests first.
+    this.scatter.group.visible = this.world.quality >= 2 || env.camDist < 300;
     this.crates.end();
     this.boxes.end();
     this.crowd.end();

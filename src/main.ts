@@ -193,6 +193,8 @@ async function boot(): Promise<void> {
     const rect = canvas.getBoundingClientRect();
     const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     const key = planet.pick(ndc, world.camera);
+    // A tap on a grain makes it jump, flip or wave (and squeak); a tap on a run opens its details.
+    if (!key && planet.pokeGrain(ndc, world.camera)) return;
     select(key && key !== selectedKey ? key : null);
   });
 

@@ -5,10 +5,13 @@ import type { Zone } from '../../globe/zones';
 import { zoneChart } from '../../globe/zones';
 import { testPose, HEAD_UP, IMPACT_PHASE, SHOT_PHASE } from '../../scene/choreography';
 import { Tv } from '../../scene/Tv';
+import { sfx } from '../../ui/sfx';
 import { FactoryState, type Product } from '../../sim/factory';
 import { STAGES } from '../../sim/stages';
 import { BeltSurface, beltSupports, ribbonMesh } from '../belts';
 import { IDLE_LIMBS, LOOKS, walkLimbs, workLimbs, type GrainPose, type LookName, type WorkStyle } from '../crowd';
+import { Folk, Net, type AgentSpec, type Poi, type Pt } from '../folk';
+import { buildPlaza, cratePile } from './plaza';
 import { M, Prefab, StaticBatch, glowMat, setGlow } from '../kit';
 import { Dyn } from '../dyn';
 import { surfaceMatrix } from '../pools';
@@ -35,6 +38,9 @@ interface Station {
   sBulk: number;
   sExpress: number;
   rot: number;
+  /** Chart position of the station's centre. */
+  fx: number;
+  fz: number;
   matrix: THREE.Matrix4;
   occupant: BulkItem | null;
   /** Seconds the station's last item has been inside; drives its machinery. */
@@ -45,6 +51,7 @@ type ExpressMode = 'inside' | 'travel' | 'reject' | 'loaded';
 
 interface Express {
   collected?: boolean;
+  stamped?: boolean;
   product: Product;
   s: number;
   stage: number;
@@ -53,17 +60,6 @@ interface Express {
   to: number;
   t: number;
   kind: ItemKind;
-}
-
-interface Worker {
-  pos: THREE.Vector3;
-  fwd: THREE.Vector3;
-  up: THREE.Vector3;
-  look: LookName;
-  style: WorkStyle;
-  station: number;
-  rank: number;
-  phase: number;
 }
 
 /** Rescue crew member: waits at the hut, runs to a failing station, works there, then walks home. */
@@ -78,16 +74,6 @@ interface Crew {
   mode: 'home' | 'out' | 'work' | 'back';
   speed: number;
   phase: number;
-}
-
-interface Walker {
-  path: SurfacePath;
-  s: number;
-  speed: number;
-  look: LookName;
-  phase: number;
-  dir: 1 | -1;
-  carry: boolean;
 }
 
 const tmpS: PathSample = { pos: new THREE.Vector3(), tangent: new THREE.Vector3(), up: new THREE.Vector3() };
@@ -122,8 +108,9 @@ export class Line {
   private ex = new Map<number, Express>();
   /** Runs already handed to the port: their visual is gone, so it must not be re-created. */
   private dispatched = new Set<number>();
-  private workers: Worker[] = [];
-  private walkers: Walker[] = [];
+  /** The crowd that lives on this line: workers, haulers, repairers and everyone on a break. */
+  folk!: Folk;
+  private stamp!: Dyn;
   private spawnTimer = 2;
   private pressHeads: Dyn[] = [];
   private craneHeads: Dyn[] = [];
@@ -142,6 +129,7 @@ export class Line {
   private tvs: Tv[] = [];
   /** Where the current incident is, for the shared red warning light (null when all is well). */
   incident: THREE.Vector3 | null = null;
+  incidentStation = -1;
 
   constructor(zone: Zone, batch: StaticBatch) {
     this.zone = zone;
@@ -160,7 +148,10 @@ export class Line {
     this.buildSign();
     this.ball = new Dyn(new Prefab().sphere(0.28, M(0x111318), 0, 0, 0), new THREE.Matrix4(), this.group);
     this.ball.mesh.visible = false;
-    this.populate();
+    const stampPrefab = new Prefab().box(1.4, 0.35, 1.4, M(0xc0271d), 0, 0.6, 0).box(1.2, 0.1, 0.35, M(0xffffff), 0, 0.96, 0).cyl(0.12, 0.12, 0.7, M(0x3b2a1f), 0, 0.95, 0, 8).sphere(0.28, M(0x3b2a1f), 0, 1.7, 0, 1, 8);
+    this.stamp = new Dyn(stampPrefab, new THREE.Matrix4(), this.group);
+    this.stamp.mesh.visible = false;
+    this.populate(batch);
     // Start with the belt already busy so the planet never looks switched on.
     this.seedItems();
   }
@@ -182,7 +173,7 @@ export class Line {
       const rot = Math.atan2(tan.x, tan.y);
       const matrix = this.chart.matrix(flat.x, flat.y, PAD_TOP, rot);
       const fraction = s / this.route.length;
-      this.stations.push({ index: k, fraction, sBulk: fraction * this.bulk.length, sExpress: fraction * this.express.length, rot, matrix, occupant: null, busy: 0 });
+      this.stations.push({ index: k, fraction, sBulk: fraction * this.bulk.length, sExpress: fraction * this.express.length, rot, fx: flat.x, fz: flat.y, matrix, occupant: null, busy: 0 });
       this.placeStation(k, batch, prefabs[k]);
     });
 
@@ -297,36 +288,101 @@ export class Line {
     this.signTex.needsUpdate = true;
   }
 
-  private populate(): void {
-    const c = this.chart;
-    const here = (k: number, x: number, z: number, faceX: number, look: LookName, style: WorkStyle): void => {
-      const st = this.stations[k];
-      const p = new THREE.Vector3(x, 0.55 - 0.55, z).applyMatrix4(st.matrix);
-      const up = tmpV2.setFromMatrixColumn(st.matrix, 1).clone().normalize();
-      const right = new THREE.Vector3().setFromMatrixColumn(st.matrix, 0).normalize();
-      const fwd = new THREE.Vector3().setFromMatrixColumn(st.matrix, 2).normalize();
-      // Face across the belt (toward x = 0) unless told otherwise.
-      const dir = right.clone().multiplyScalar(faceX).normalize();
-      this.workers.push({ pos: p, fwd: dir.lengthSq() ? dir : fwd, up, look, style, station: k, rank: Math.random(), phase: Math.random() * 6 });
+  private populate(batch: StaticBatch): void {
+    const zone = this.zone.id;
+    // Walkways: two long rows between the belts, linked at both ends, with a gate out to the break plaza.
+    const net = new Net();
+    const xs = [-30, -20, -10, 0, 10, 20, 32];
+    const rowN = xs.map((x) => net.node(x, -6));
+    const rowS = xs.map((x) => net.node(x, 6));
+    for (let i = 1; i < xs.length; i++) {
+      net.link(rowN[i - 1], rowN[i]);
+      net.link(rowS[i - 1], rowS[i]);
+    }
+    net.link(rowN[0], rowS[0]);
+    net.link(rowN[6], rowS[6]);
+    const gate = net.node(46, 6);
+    const yard = net.node(50, -3);
+    net.link(rowS[6], gate);
+    net.link(gate, yard);
+    const folk = (this.folk = new Folk(this.chart, PAD_TOP, net, zone));
+    for (const [z, x0, x1] of [[-11, -38, 35], [0, -37, 34], [11, -37, 36]] as const) folk.addBelt(x0, x1, z);
+
+    // Break plaza on the avenue side of the pad, with its seats as errands.
+    const PLAZA: Pt = { x: 53, z: -8.5 };
+    const seats = buildPlaza(batch, this.chart, zone, PLAZA.x, PLAZA.z);
+    net.link(yard, net.node(PLAZA.x, PLAZA.z + 1));
+
+    // Where a worker stands: beside station k, `x` to its left and `z` along the belt (near side of the walkway).
+    const st = (k: number, lx: number, lz: number): Pt => {
+      const s = this.stations[k];
+      const c = Math.cos(s.rot);
+      const n = Math.sin(s.rot);
+      return { x: s.fx + lx * c + lz * n, z: s.fz - lx * n + lz * c };
+    };
+    const faceBelt = (k: number, lx: number): number => {
+      const s = this.stations[k];
+      const dir = -Math.sign(lx);
+      return Math.atan2(dir * Math.cos(s.rot), -dir * Math.sin(s.rot));
+    };
+    // Row 1 stations are worked from their near (right-hand) side, row 3 from the left.
+    const side = (k: number, mag: number): number => (k <= 2 ? -mag : k === 4 ? mag : mag);
+
+    // Chore spots: crate piles to shuttle between, machinery to fix, and floors to sweep.
+    const piles: Poi[] = [];
+    for (const [x, z] of [[-22, -3.4], [24, -3.4], [-24, 3.6], [26, 3.6]] as const) {
+      piles.push({ x, z, face: 0, style: 'pack', dur: [0.5, 0.8], kind: 'haul', pile: true });
+      batch.placeOn(cratePile(), this.chart, x + (z < 0 ? 0 : 0), z + (z < 0 ? -1.4 : 1.4), PAD_TOP, Math.PI * 0.2);
+    }
+    const fixes: Poi[] = [
+      { x: -30, z: -2.8, face: Math.PI, style: 'repair', dur: [8, 16], kind: 'maint' },
+      { x: 14, z: -2.8, face: Math.PI, style: 'repair', dur: [8, 16], kind: 'maint' },
+      { x: -34, z: 3.2, face: 0, style: 'repair', dur: [8, 16], kind: 'maint' },
+      { x: 14, z: 3.4, face: 0, style: 'repair', dur: [8, 16], kind: 'maint' },
+      { x: 33, z: -2.6, face: Math.PI * 0.5, style: 'repair', dur: [6, 12], kind: 'maint' },
+    ];
+    const sweeps: Poi[] = [-24, -8, 8, 24].map((x, i) => ({ x, z: i % 2 ? 6 : -6, face: Math.PI * 0.5, style: 'sweep' as WorkStyle, dur: [8, 16] as [number, number], kind: 'maint' as const }));
+    const inspects: Poi[] = [0, 1, 2, 3, 4].map((k) => {
+      const p = st(k, side(k, 5.4), 0);
+      return { x: p.x, z: p.z, face: faceBelt(k, side(k, 5.4)), style: 'inspect' as WorkStyle, dur: [6, 12] as [number, number], kind: 'maint' as const };
+    });
+    const chores = [...fixes, ...sweeps, ...inspects, ...piles];
+
+    const post = (k: number, lx: number, lz: number, style: WorkStyle): Poi => {
+      const lat = lx < 0 && k === 3 ? lx : side(k, Math.abs(lx));
+      const p = st(k, lat, lz);
+      return { x: p.x, z: p.z, face: faceBelt(k, lat), style, dur: [1, 1], kind: 'post' };
+    };
+    const add = (look: LookName, p: Poi, extra: Partial<AgentSpec> = {}): void => {
+      folk.add({ look, post: p, errands: [...chores, ...seats], lazy: 0.45, ...extra });
     };
     // Crews beside each station, facing the belt.
-    for (const [z, look] of [[-3, 'rice'], [0, 'rice'], [3, 'corn']] as const) here(0, 5.6, z, -1, look as LookName, 'load');
-    here(0, -5.6, -2, 1, 'rice', 'load');
-    for (const z of [-2, 2]) here(1, 5.9, z, -1, 'rice', 'polish');
-    here(1, -5.9, 0, 1, 'basmati', 'clipboard');
-    for (const z of [-3, 0, 3]) here(2, 5.8, z, -1, 'corn', 'hammer');
-    for (const z of [-3, 3]) here(2, -5.8, z, 1, 'corn', 'hammer');
-    for (const z of [-4, 0]) here(3, 8.8, z, -1, 'wheat', 'throw');
-    for (const z of [-4, 0]) here(3, -8.8, z, 1, 'wheat', 'throw');
-    here(3, 8.8, 5, -1, 'basmati', 'clipboard');
-    for (const z of [-3, 0, 3]) here(4, 5.8, z, -1, 'rice', 'load');
-    here(4, -5.8, 1, 1, 'rice', 'load');
-
-    // Walkers on a rectangular walkway round the middle of the line, plus supervisors on a longer loop.
-    const loop = SurfacePath.through(c, [[-30, -6], [10, -6], [32, -6], [32, 6], [10, 6], [-30, 6], [-30, -6]], PAD_TOP, false, 0.9);
-    const looks: LookName[] = ['rice', 'corn', 'wheat', 'quinoa', 'millet', 'rice', 'quinoa', 'millet'];
-    looks.forEach((look, i) => this.walkers.push({ path: loop, s: (i / looks.length) * loop.length, speed: look === 'quinoa' || look === 'millet' ? 2.6 : 1.5, look, phase: i * 1.3, dir: 1, carry: i % 3 === 0 }));
-    this.walkers.push({ path: loop, s: 20, speed: 1.2, look: 'basmati', phase: 0, dir: -1, carry: false }, { path: loop, s: 120, speed: 1.2, look: 'basmati', phase: 2, dir: -1, carry: false });
+    for (const [lz, look] of [[-3, 'rice'], [0, 'rice'], [3, 'corn']] as const) add(look, post(0, 5.6, lz, 'load'));
+    add('rice', post(0, 5.6, -5, 'load'));
+    for (const lz of [-2, 2]) add('rice', post(1, 5.9, lz, 'polish'));
+    add('basmati', post(1, -5.9, 0, 'clipboard'));
+    for (const lz of [-3, 0, 3]) add('corn', post(2, 5.8, lz, 'hammer'));
+    for (const lz of [-3, 3]) add('corn', post(2, -5.8, lz, 'hammer'));
+    for (const lz of [-4, 0]) add('wheat', post(3, 8.8, lz, 'throw'), { tester: true });
+    for (const lz of [-4, 0]) add('wheat', post(3, -8.8, lz, 'throw'), { tester: true });
+    add('basmati', post(3, 8.8, 5, 'clipboard'));
+    for (const lz of [-3, 0, 3]) add('rice', post(4, 5.8, lz, 'load'));
+    add('rice', post(4, 5.8, 5, 'load'));
+    // Couriers on scooters and millet runners shuttle crates between the piles all day.
+    const couriers: LookName[] = ['quinoa', 'quinoa', 'millet', 'millet', 'quinoa'];
+    couriers.forEach((look, i) => folk.add({ look, post: piles[i % piles.length], errands: piles, lazy: 0, courier: look === 'quinoa' }));
+    // Maintenance crews and inspectors have their own beat.
+    for (const [i, look] of (['corn', 'rice', 'basmati', 'basmati'] as LookName[]).entries()) {
+      const home = i < 2 ? fixes[i] : inspects[i + 0];
+      folk.add({ look, post: home, errands: i < 2 ? [...fixes, ...sweeps] : inspects, lazy: 0.2 });
+    }
+    // A few people are always on a break at the plaza, whatever the workload.
+    for (let i = 0; i < 6; i++) {
+      const seat = seats[(i * 3) % seats.length];
+      seat.taken = true;
+      const looks: LookName[] = ['rice', 'corn', 'millet', 'wheat', 'quinoa', 'rice'];
+      folk.add({ look: looks[i], post: { ...seat, kind: 'post' }, errands: [...fixes, ...piles], lazy: 0.9 });
+    }
   }
 
   /** Fills the belt with a plausible mid-shift spread so the line never starts empty. */
@@ -360,6 +416,7 @@ export class Line {
     this.updateBulk(env.dt, speed, act);
     this.updateExpress(env, speed * 1.5);
     this.updateCrew(env);
+    if (env.camDist < 320) this.folk.update(env, { activity: this.repo ? this.state.activity : 0.3, incident: this.incident, incidentStation: this.incidentStation });
     this.smoke(env);
     if (env.camDist < 260) for (const tv of this.tvs) tv.update(this.state.mode, this.state.stats, env.elapsed);
     if (this.flash > 0) this.flash -= env.dt;
@@ -538,6 +595,7 @@ export class Line {
     const failing = this.state.products.find((p) => p.status === 'failed');
     const stage = failing ? Math.min(failing.failAt ?? 0, 4) : 0;
     this.incident = failing ? tmpP.set(0, 1.4, 0).applyMatrix4(this.stations[stage].matrix).clone() : null;
+    this.incidentStation = failing ? stage : -1;
     this.crew.forEach((c, i) => {
       if (failing && c.mode === 'home' && failing.age > 0.8 + i * 0.5) {
         c.path = this.crewPath(stage, i);
@@ -598,6 +656,7 @@ export class Line {
       (it.kind === 'crate' ? pools.crates : pools.boxes).push(m, TINT[it.kind]);
     }
     // Real runs on the express lane.
+    this.stamp.mesh.visible = false;
     for (const e of this.ex.values()) this.drawExpress(e, pools);
     this.poseMachinery(env);
     if (near) this.drawCrowd(env, pools);
@@ -640,6 +699,22 @@ export class Line {
     if (scaleY !== 1) tmpM.scale(new THREE.Vector3(1, scaleY, 1));
     const tint = p.status === 'failed' ? TINT.failed : p.status === 'cancelled' ? TINT.cancelled : TINT[e.kind];
     (e.kind === 'crate' ? pools.crates : pools.boxes).push(tmpM, tint);
+    if (p.status === 'cancelled' && e.mode === 'inside') this.showStamp(e, tmpP, tmpS.tangent, tmpS.up);
+  }
+
+  /** A giant rubber stamp that slams down on a cancelled run, then lifts away. */
+  private showStamp(e: Express, at: THREE.Vector3, forward: THREE.Vector3, up: THREE.Vector3): void {
+    const u = e.t;
+    const down = u < 0.2 ? 0 : u < 0.55 ? (u - 0.2) / 0.35 : u < 1.0 ? 1 : Math.max(0, 1 - (u - 1.0) / 0.4);
+    const h = 0.55 + (1 - down * down) * 2.6;
+    if (!e.stamped && u >= 0.55) {
+      e.stamped = true;
+      sfx.stamp();
+    }
+    surfaceMatrix(tmpV2.copy(at).addScaledVector(up, h), forward, up, tmpM);
+    this.stamp.mesh.matrix.copy(tmpM);
+    this.stamp.mesh.matrixWorldNeedsUpdate = true;
+    this.stamp.mesh.visible = true;
   }
 
   private poseMachinery(env: Env): void {
@@ -698,19 +773,12 @@ export class Line {
     const act = this.repo ? this.state.activity : 0.3;
     const g: GrainPose = { pos: tmpP, forward: tmpV, up: tmpV2, look: LOOKS.rice, armL: 0, armR: 0, legL: 0, legR: 0, bob: 0, lean: 0, roll: 0 };
     const t = env.elapsed;
-    for (const w of this.workers) {
-      const engaged = w.rank < 0.35 + 0.65 * act;
-      const limbs = engaged ? workLimbs(w.style, t, w.phase) : IDLE_LIMBS(t, w.phase);
-      g.pos = w.pos;
-      g.forward = w.fwd;
-      g.up = w.up;
-      g.look = LOOKS[w.look];
-      Object.assign(g, limbs);
-      pools.crowd.draw(g);
-    }
+    this.folk.draw(env, pools, { activity: act, incident: this.incident, incidentStation: this.incidentStation });
     const gp = { pos: new THREE.Vector3(), tangent: new THREE.Vector3(), up: new THREE.Vector3() };
     for (const c of this.crew) {
       g.look = LOOKS[c.look];
+      g.propR = c.mode !== 'home' && c.role === 'spray' ? 'extinguisher' : c.mode === 'work' && c.role === 'sweep' ? 'broom' : undefined;
+      g.propBody = c.mode !== 'home' && c.mode !== 'work' && c.look === 'medic' ? 'stretcher' : undefined;
       if (c.mode === 'home') {
         g.pos = c.home;
         g.forward = c.homeFwd;
@@ -727,17 +795,21 @@ export class Line {
       }
       pools.crowd.draw(g);
     }
-    for (const w of this.walkers) {
-      w.s = (w.s + w.speed * env.dt * w.dir + w.path.length) % w.path.length;
-      w.path.at(w.s, gp);
-      const limbs = walkLimbs(t * w.speed * 3.2 + w.phase, w.speed, w.carry);
-      g.pos = gp.pos;
-      g.forward = w.dir === 1 ? gp.tangent : tmpV2.copy(gp.tangent).negate().clone();
-      g.up = gp.up;
-      g.look = LOOKS[w.look];
-      Object.assign(g, limbs);
-      pools.crowd.draw(g);
-    }
+  }
+
+  /** Screen picking: every grain on this line. */
+  grainPickables(): { id: number; pos: THREE.Vector3 }[] {
+    return this.folk.pickables();
+  }
+
+  /** Direction of the break plaza's centre. */
+  plazaDir(): THREE.Vector3 {
+    return this.chart.dir(53, -8.5);
+  }
+
+  /** Cheering crowd after one of this line's rockets leaves. */
+  celebrate(): void {
+    this.folk.cheer(7);
   }
 
   /** Screen picking: world position of each real run's item. */

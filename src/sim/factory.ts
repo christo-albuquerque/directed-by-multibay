@@ -51,7 +51,7 @@ export class FactoryState {
   stats: FactoryStats = { succeeded: 0, failed: 0, cancelled: 0 };
   /** Stages travelled per second. */
   speed = 0.35;
-  /** Failures since the last successful launch; drives the storm clouds. */
+  /** Failures since the last successful launch (weather is random and does not depend on it). */
   consecutiveFailures = 0;
   /** How long wreckage stays on screen (long enough for the rescue crew to arrive and work). */
   lingerSeconds = 9;

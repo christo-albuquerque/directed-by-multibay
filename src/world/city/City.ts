@@ -139,12 +139,12 @@ export class City {
     // Towers around the edges, taller toward the back.
     const colors = [0x2d3248, 0x3a2f4d, 0x24384a, 0x41334a, 0x2b3d3f];
     for (let i = 0; i < 9; i++) {
-      const h = 18 + r() * 18;
+      const h = 8 + r() * 8;
       batch.placeOn(tower(8 + r() * 3, 8 + r() * 3, h, colors[i % colors.length], id, r), c, -37 + i * 9.2, -25, GROUND, 0);
     }
     for (let i = 0; i < 5; i++) {
-      batch.placeOn(tower(8, 9, 12 + r() * 12, colors[(i + 1) % colors.length], id, r), c, -39, -15 + i * 9.5, GROUND, 0);
-      batch.placeOn(tower(8, 9, 12 + r() * 12, colors[(i + 2) % colors.length], id, r), c, 39, -15 + i * 9.5, GROUND, 0);
+      batch.placeOn(tower(8, 9, 5 + r() * 6, colors[(i + 1) % colors.length], id, r), c, -39, -15 + i * 9.5, GROUND, 0);
+      batch.placeOn(tower(8, 9, 5 + r() * 6, colors[(i + 2) % colors.length], id, r), c, 39, -15 + i * 9.5, GROUND, 0);
     }
     // Low shopfronts along the south edge.
     for (let i = 0; i < 9; i++) batch.placeOn(new Prefab().box(8, 5 + r() * 2, 5, M(colors[i % colors.length]), 0, 0, 0).box(8.2, 0.4, 5.2, glowMat(id, NEON[i % NEON.length], 0.2, 2.2), 0, 5, 0), c, -35 + i * 8.8, 26.5, GROUND, Math.PI);
@@ -176,7 +176,7 @@ export class City {
       this.signs.add(c, sign++ % 18, x, 10.6, GROUND + 4.9, 4.4, 2.2, Math.PI);
     }
     // Big vertical signs on the towers.
-    for (let i = 0; i < 9; i += 2) this.signs.add(c, 18 + (i % 2), -37 + i * 9.2, -20.6, GROUND + 14, 7, 3.6, 0);
+    for (let i = 0; i < 9; i += 2) this.signs.add(c, 18 + (i % 2), -37 + i * 9.2, -20.6, GROUND + 7, 7, 3.6, 0);
     this.signs.add(c, 22, -33, 22.5, GROUND + 5.5, 4, 2, 0);
     this.signs.add(c, 23, 33, 22.5, GROUND + 5.5, 4, 2, 0);
     this.signs.add(c, 20, 33, -4, GROUND + 4.2, 2.6, 1.3, 0);
