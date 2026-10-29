@@ -51,6 +51,12 @@ describe('progressOf', () => {
     expect(p.outcome).toBe('running');
   });
 
+  it('trusts the jobs over a stale queued run status', () => {
+    const p = progressOf(run({ status: 'queued' }, [job([step('Lint', 'in_progress')], { name: 'Lint' })]));
+    expect(p.stage).toBe(1);
+    expect(p.u).toBeGreaterThan(1);
+  });
+
   it('sits in the build stage while a build step runs', () => {
     const p = progressOf(
       run({}, [
@@ -82,6 +88,17 @@ describe('progressOf', () => {
     expect(p.outcome).toBe('failure');
     expect(p.failAt).toBe(3);
     expect(p.u).toBeCloseTo(3.5);
+  });
+
+  it('is not dragged back to the depot by a later job that repeats checkout and install', () => {
+    const build = job(
+      [step('Run actions/checkout@v4', 'completed', 'success'), step('Run npm ci', 'completed', 'success'), step('Run npm run build', 'completed', 'success')],
+      { name: 'build', status: 'completed', conclusion: 'success' },
+    );
+    const test = job([step('Run actions/checkout@v4', 'in_progress'), step('Run npm ci', 'pending'), step('Run npm test', 'pending')], { name: 'test' });
+    const p = progressOf(run({}, [build, test]));
+    expect(p.stage).toBe(2);
+    expect(p.u).toBeGreaterThanOrEqual(2);
   });
 
   it('reaches the launchpad on success and stands down on cancel', () => {

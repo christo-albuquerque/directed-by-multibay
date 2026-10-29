@@ -176,7 +176,8 @@ let lastUiTick = 0;
 world.start();
 if (live) poller.start();
 // Handy for poking at the scene from the console during development.
-const debug = window as unknown as { __factory: FactoryState; __world: World; __crowd: Crowd };
+const debug = window as unknown as { __factory: FactoryState; __world: World; __crowd: Crowd; __poller: GitHubPoller };
 debug.__factory = state;
+debug.__poller = poller;
 debug.__world = world;
 debug.__crowd = crowd;

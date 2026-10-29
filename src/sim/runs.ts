@@ -130,22 +130,23 @@ export function progressOf(run: NormalizedRun, rules: StageRule[] = DEFAULT_RULE
   const failAt = outcome === 'failure' ? (failedUnit?.stage ?? (units.length ? lastStarted : 2)) : null;
 
   let u = 0;
-  if (run.status === 'queued') {
+  // The run object can lag behind its jobs, so only trust "queued" when no step has started.
+  if (run.status === 'queued' && !started.length) {
     u = 0;
   } else if (!units.length) {
     u = 0.3;
-  } else {
+  } else if (!started.length) {
+    u = 0.1;
+  } else if (!units.some((x) => x.state !== 'done')) {
     u = 4.95;
-    for (let s = 0; s < STAGES.length; s++) {
-      const inStage = units.filter((x) => x.stage === s);
-      if (!inStage.length) continue;
-      const done = inStage.filter((x) => x.state === 'done').length;
-      if (done < inStage.length) {
-        const running = inStage.filter((x) => x.state === 'running').length;
-        u = s + (done + 0.5 * running) / inStage.length;
-        break;
-      }
-    }
+  } else {
+    // The product sits at the furthest stage any step has reached. (Later jobs repeat checkout and
+    // install steps, so "first unfinished stage" would drag it back to the depot.)
+    const frontier = Math.max(...started.map((x) => x.stage));
+    const inStage = units.filter((x) => x.stage === frontier);
+    const done = inStage.filter((x) => x.state === 'done').length;
+    const running = inStage.filter((x) => x.state === 'running').length;
+    u = frontier + Math.min(0.95, (done + 0.5 * running) / inStage.length);
   }
 
   if (outcome === 'success') u = 5;

@@ -99,6 +99,7 @@ export class GitHubPoller {
   private jobCache = new Map<number, { updatedAt: number; jobs: JobInfo[] }>();
   private errors = 0;
   private requests = 0;
+  private cycleNo = 0;
   private meta: PollerMeta = { remaining: null, limit: null, resetAt: null, lastOkAt: null, error: null, nextAt: 0, authed: false };
 
   constructor(private opts: PollerOptions) {}
@@ -130,9 +131,16 @@ export class GitHubPoller {
     let fatal: number | null = null;
     const all: NormalizedRun[] = [];
 
+    this.cycleNo++;
     for (const repo of this.opts.repos()) {
       try {
-        const runs = await this.fetchRuns(repo, token);
+        // While a run is in flight only its jobs change quickly, so refresh the (rate-limited) run list
+        // every third cycle, or as soon as every job of an active run has finished.
+        const cached = this.runCache.get(repo);
+        const active = cached?.filter((r) => r.status !== 'completed') ?? [];
+        const jobsFinished = active.length > 0 && active.every((r) => (this.jobCache.get(r.id)?.jobs ?? []).length > 0 && (this.jobCache.get(r.id)?.jobs ?? []).every((j) => j.status === 'completed'));
+        const skipRuns = !!cached && active.length > 0 && !jobsFinished && this.cycleNo % 3 !== 0;
+        const runs = skipRuns ? cached : await this.fetchRuns(repo, token);
         await this.attachJobs(repo, runs, token);
         all.push(...runs.map((r) => ({ ...r, jobs: this.jobCache.get(r.id)?.jobs ?? null })));
         this.meta.error = null;
@@ -183,7 +191,8 @@ export class GitHubPoller {
     if (token) headers.Authorization = `Bearer ${token}`;
     if (etag) headers['If-None-Match'] = etag;
     this.requests++;
-    const res = await fetch(url, { headers });
+    // GitHub sends `max-age=60`, which would otherwise make the browser serve stale data for a minute.
+    const res = await fetch(url, { headers, cache: 'no-store' });
     const remaining = res.headers.get('x-ratelimit-remaining');
     const limit = res.headers.get('x-ratelimit-limit');
     const reset = res.headers.get('x-ratelimit-reset');
@@ -210,7 +219,8 @@ export class GitHubPoller {
     const now = Date.now();
     const wanted = runs
       .filter((r) => r.status !== 'completed' || now - r.updatedAt < 180_000)
-      .filter((r) => this.jobCache.get(r.id)?.updatedAt !== r.updatedAt)
+      // Active runs are always refreshed (steps change without the run's own timestamp moving).
+      .filter((r) => r.status !== 'completed' || this.jobCache.get(r.id)?.updatedAt !== r.updatedAt)
       .sort((a, b) => Number(b.status !== 'completed') - Number(a.status !== 'completed'))
       .slice(0, 4);
     for (const r of wanted) {
