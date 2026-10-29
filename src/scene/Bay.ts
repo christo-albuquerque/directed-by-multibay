@@ -3,7 +3,7 @@ import type { FactoryMode, FactoryState, StageName } from '../sim/factory';
 import { STAGES } from '../sim/factory';
 import { pressDip } from './choreography';
 import { BELT_Y, PATH_X, pathPosition, TRUCK_DOCK_X, TRUCK_PAD_X } from './layout';
-import type { Particles } from './Particles';
+import type { Emitter } from './Particles';
 import { TestRig } from './TestRig';
 import { Truck } from './Truck';
 import { sfx } from '../ui/sfx';
@@ -52,6 +52,10 @@ export class Bay {
 
   constructor(name: string) {
     this.beltTex = makeBeltTexture();
+    // Concrete apron under this bay.
+    const apron = new THREE.Mesh(new THREE.BoxGeometry(34, 0.12, 14), mat(0xb9b2a6));
+    apron.position.set(2, 0.06, -0.5);
+    this.group.add(apron);
     this.buildBelt();
     this.buildStations();
     this.testRig = new TestRig(this.group);
@@ -151,7 +155,7 @@ export class Bay {
     });
   }
 
-  update(dt: number, elapsed: number, mode: FactoryMode, state: FactoryState, fx: Particles, night: number): void {
+  update(dt: number, elapsed: number, mode: FactoryMode, state: FactoryState, fx: Emitter, night: number): void {
     const running = mode !== 'idle';
     // Busier factory, faster belt and heavier smoke.
     const busy = state.activity;

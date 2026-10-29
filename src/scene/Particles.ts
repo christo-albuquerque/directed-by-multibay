@@ -10,7 +10,31 @@ export interface EmitOpts {
   drag?: number;
 }
 
-const CAPACITY = 900;
+/** Anything particles can be emitted into. Bays use an offset emitter so their local coordinates just work. */
+export interface Emitter {
+  emit(p: THREE.Vector3, v: THREE.Vector3, o?: EmitOpts): void;
+  burst(p: THREE.Vector3, n: number, speed: number, spread: number, dir: THREE.Vector3, o?: EmitOpts): void;
+}
+
+/** Wraps an emitter, shifting every emission by a fixed world offset (a bay's position). */
+export class OffsetEmitter implements Emitter {
+  private tmp = new THREE.Vector3();
+
+  constructor(
+    private base: Emitter,
+    private offset: THREE.Vector3,
+  ) {}
+
+  emit(p: THREE.Vector3, v: THREE.Vector3, o?: EmitOpts): void {
+    this.base.emit(this.tmp.copy(p).add(this.offset), v, o);
+  }
+
+  burst(p: THREE.Vector3, n: number, speed: number, spread: number, dir: THREE.Vector3, o?: EmitOpts): void {
+    this.base.burst(this.tmp.copy(p).add(this.offset), n, speed, spread, dir, o);
+  }
+}
+
+const CAPACITY = 1800;
 
 const VERT = /* glsl */ `
   attribute float aSize;
@@ -39,7 +63,7 @@ const FRAG = /* glsl */ `
 `;
 
 /** Pooled soft-sprite particles (smoke, sparks, steam, exhaust) drawn as one Points object. */
-export class Particles {
+export class Particles implements Emitter {
   readonly points: THREE.Points;
   private pos = new Float32Array(CAPACITY * 3);
   private col = new Float32Array(CAPACITY * 3);

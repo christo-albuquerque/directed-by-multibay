@@ -1,28 +1,42 @@
 import * as THREE from 'three';
 import type { FactoryMode } from '../sim/factory';
-import { PLAZA, PLAZA_RADIUS, PLAZA_TOP, type Seat } from '../scene/Courtyard';
+import { PLAZA_RADIUS, PLAZA_TOP } from '../scene/Courtyard';
 import { PATH_X } from '../scene/layout';
+import { BAY_X0, BAY_X1, BAY_Z0, BAY_Z1, type Layout } from '../scene/layoutPlan';
+import type { Seat } from '../scene/Courtyard';
 import type { Particles } from '../scene/Particles';
-import { rng } from '../scene/util';
 import type { GrainVariant } from './grains';
 import { Worker, type Routine, type WorkStyle } from './Worker';
 
 const PLATE_TOP = 0.26;
 const APRON_TOP = 0.12;
-/** The rescue hut sits at the left end of the apron; crew wait in front of it. */
+/** The rescue hut sits at the left end of each apron (bay-local); crew wait in front of it. */
 export const HUT = new THREE.Vector3(-14, 0, 3.4);
 const ALARM_SECONDS = 3.5;
 
+let ground: Pick<Layout, 'bayZ' | 'plazas'> = { bayZ: [0], plazas: [{ x: 0, z: 10.5 }] };
+
+/** Tells every worker where the floors are, for the current set of bays and plazas. */
+export function setGroundLayout(layout: Pick<Layout, 'bayZ' | 'plazas'>): void {
+  ground = layout;
+}
+
 /** Height of the floor under (x, z): plates under each stage, the apron, the plaza, or bare ground. */
 export function groundAt(x: number, z: number): number {
-  if (z >= -3.6 && z <= 3.3 && PATH_X.slice(0, 5).some((sx) => Math.abs(x - sx) < 1.8)) return PLATE_TOP;
-  if (z >= -7.5 && z <= 6.5 && x >= -15 && x <= 19) return APRON_TOP;
-  if (Math.hypot(x - PLAZA.x, z - PLAZA.z) < PLAZA_RADIUS) return PLAZA_TOP;
+  for (const bz of ground.bayZ) {
+    const lz = z - bz;
+    if (lz >= -3.6 && lz <= 3.3 && PATH_X.slice(0, 5).some((sx) => Math.abs(x - sx) < 1.8)) return PLATE_TOP;
+    if (lz >= BAY_Z0 && lz <= BAY_Z1 && x >= BAY_X0 && x <= BAY_X1) return APRON_TOP;
+  }
+  if (ground.plazas.some((p) => Math.hypot(x - p.x, z - p.z) < PLAZA_RADIUS)) return PLAZA_TOP;
   return 0;
 }
 
+/** z shift of the bay whose roster is being built; set by the Crowd constructor. */
+let bayDz = 0;
+
 function v(x: number, z: number): THREE.Vector3 {
-  return new THREE.Vector3(x, 0, z);
+  return new THREE.Vector3(x, 0, z + bayDz);
 }
 
 function station(x: number, z: number, style: WorkStyle): Routine {
@@ -107,33 +121,21 @@ export class Crowd {
   private prevMode: FactoryMode = 'idle';
   private raycaster = new THREE.Raycaster();
 
-  constructor(seats: Seat[]) {
+  /** `bayZ` is the world z of the bay this crowd works in. */
+  constructor(bayZ: number) {
+    bayDz = bayZ;
     for (const { variant, routine } of [...roster(), ...crewRoster()]) {
       const w = new Worker(variant, routine);
       this.workers.push(w);
       this.group.add(w.rig.root);
+      if (routine.kind === 'response') w.placeAt(routine.home, Math.PI / 4);
     }
-    this.assignSeats(seats);
+    bayDz = 0;
   }
 
-  /** Everyone who isn't on the rescue crew gets a break spot; they start the day there. */
-  private assignSeats(seats: Seat[]): void {
-    const rand = rng(11);
-    const pool = [...seats];
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    for (const w of this.workers) {
-      if (w.routine.kind === 'response') {
-        w.placeAt(w.routine.home, Math.PI / 4);
-        continue;
-      }
-      const s = pool.pop();
-      if (!s) continue;
-      w.seat = s;
-      w.placeAt(s.pos, s.face);
-    }
+  /** Everyone except the rescue crew, who need a break spot on the plaza. */
+  get seatable(): Worker[] {
+    return this.workers.filter((w) => w.routine.kind !== 'response');
   }
 
   update(dt: number, elapsed: number, mode: FactoryMode, ctx: CrowdContext): void {
@@ -169,5 +171,30 @@ export class Crowd {
       o = o.parent;
     }
     return null;
+  }
+}
+
+/** Deals out break spots (random, but the same every load) to every seatable worker across all crowds. */
+export function assignBreakSeats(crowds: Crowd[], seats: Seat[]): void {
+  let a = 11;
+  const rand = (): number => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const pool = [...seats];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  for (const crowd of crowds) {
+    for (const w of crowd.seatable) {
+      const s = pool.pop();
+      if (!s) continue;
+      w.seat = s;
+      w.placeAt(s.pos, s.face);
+    }
   }
 }

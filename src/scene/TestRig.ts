@@ -3,7 +3,7 @@ import type { Product } from '../sim/factory';
 import { sfx } from '../ui/sfx';
 import { HEAD_UP, IMPACT_PHASE, SHOT_PHASE, testPose } from './choreography';
 import { BELT_Y, PATH_X } from './layout';
-import type { Particles } from './Particles';
+import type { Emitter } from './Particles';
 import { box, cyl, mat, shadowAll } from './util';
 
 const BEAM_Y = 4.7;
@@ -73,7 +73,7 @@ export class TestRig {
     this.rope.position.set(X, top + len / 2, 0);
   }
 
-  update(dt: number, product: Product | null, fx: Particles): void {
+  update(dt: number, product: Product | null, fx: Emitter): void {
     if (!product) {
       this.setHead(HEAD_UP);
       this.ball.visible = false;

@@ -3,7 +3,7 @@ import { HUT } from '../agents/Crowd';
 import type { FactoryState, ProductStatus } from '../sim/factory';
 import { sfx } from '../ui/sfx';
 import { BELT_Y, PATH_X, pathPosition } from './layout';
-import type { Particles } from './Particles';
+import type { Emitter } from './Particles';
 import { box, makeLabel, shadowAll } from './util';
 
 /** Where smoke pours out for a failure at each stage (world coordinates). */
@@ -59,7 +59,7 @@ export class Incidents {
     this.group.add(this.stretcher, this.light);
   }
 
-  update(dt: number, elapsed: number, state: FactoryState, fx: Particles): void {
+  update(dt: number, elapsed: number, state: FactoryState, fx: Emitter): void {
     let failed = null as (typeof state.products)[number] | null;
     for (const p of state.products) {
       if (p.status === 'failed' && !failed) failed = p;
@@ -92,7 +92,7 @@ export class Incidents {
     this.stretcher.scale.setScalar(Math.max(0.01, this.stretcherP));
   }
 
-  private onFail(p: { u: number; failAt: number | null }, fx: Particles): void {
+  private onFail(p: { u: number; failAt: number | null }, fx: Emitter): void {
     sfx.crash();
     const at = pathPosition(p.u, this.tmp).setY(BELT_Y + 0.5);
     fx.burst(at, 8, 0.5, 1, new THREE.Vector3(0, 0.2, 0), { color: 0xfff1b0, size0: 1.0, size1: 2.6, life: 0.25, alpha: 0.9, drag: 4 });
@@ -100,7 +100,7 @@ export class Incidents {
     fx.burst(at, 12, 3.2, 2, new THREE.Vector3(0, 1, 0), { color: 0xd62828, size0: 0.14, size1: 0.1, life: 1.0, alpha: 1, gravity: -9, drag: 0.3 });
   }
 
-  private emitSmoke(dt: number, stage: number, fx: Particles): void {
+  private emitSmoke(dt: number, stage: number, fx: Emitter): void {
     const src = SMOKE_AT[Math.min(Math.max(Math.floor(stage), 0), SMOKE_AT.length - 1)];
     this.smokeAcc += dt * 26;
     while (this.smokeAcc >= 1) {

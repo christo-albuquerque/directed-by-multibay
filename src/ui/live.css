@@ -30,6 +30,17 @@
   cursor: pointer;
 }
 .live-buttons button:hover { background: #33425f; }
+.live-editor { display: none; margin-top: 8px; padding: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.06); }
+.live-editor.open { display: block; }
+.live-hint { opacity: 0.65; font-size: 11px; margin-bottom: 6px; }
+.live-repolist { list-style: none; margin: 0 0 6px; padding: 0; }
+.live-repo { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.live-repo span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-repo .rm { border: 0; background: none; color: #fca5a5; cursor: pointer; font-size: 13px; }
+.live-repo .rm:disabled { opacity: 0.3; cursor: default; }
+.live-add { display: flex; gap: 6px; }
+.live-add input { flex: 1; min-width: 0; padding: 4px 6px; border-radius: 6px; border: 1px solid #334155; background: #0b1220; color: inherit; font: inherit; }
+.live-add button { padding: 4px 10px; border: 0; border-radius: 6px; background: #1d6f4a; color: inherit; font: inherit; cursor: pointer; }
 .live-runs { list-style: none; margin: 8px 0 0; padding: 0; }
 .live-runs .run {
   display: flex;

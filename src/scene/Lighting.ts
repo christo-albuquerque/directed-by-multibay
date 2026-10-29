@@ -30,6 +30,27 @@ export class Lighting {
     scene.background = DAY.sky.clone();
   }
 
+  /** Aims the sun and its shadow map at the whole factory, however many bays it has grown. */
+  setExtent(center: { x: number; z: number }, radius: number): void {
+    this.sun.position.set(center.x + 14 * (radius / 22), 24 * (radius / 22), center.z + 10 * (radius / 22));
+    this.sun.target.position.set(center.x, 0, center.z);
+    this.scene.add(this.sun.target);
+    const r = radius * 1.1;
+    const c = this.sun.shadow.camera;
+    c.left = -r;
+    c.right = r;
+    c.top = r;
+    c.bottom = -r;
+    c.far = 80 + radius * 2;
+    c.updateProjectionMatrix();
+    const size = radius > 30 ? 4096 : 2048;
+    if (this.sun.shadow.mapSize.x !== size) {
+      this.sun.shadow.mapSize.set(size, size);
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null;
+    }
+  }
+
   /** `rain` is 0..1 storm intensity; it greys and dims the day. */
   update(dt: number, mode: FactoryMode, rain = 0): void {
     const targetNight = mode === 'idle' ? 1 : 0;

@@ -40,12 +40,27 @@ export class World {
     this.updaters.push(fn);
   }
 
+  private fit = 27;
+
+  /** Frames the whole factory: aim at its centre and zoom out as it grows. */
+  setFraming(center: { x: number; z: number }, fit: number): void {
+    this.fit = fit;
+    const focus = new THREE.Vector3(center.x, 0, center.z);
+    this.controls.target.copy(focus);
+    this.camera.position.copy(focus).add(new THREE.Vector3(24, 20, 24));
+    this.camera.zoom = 1;
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
+    this.resize();
+  }
+
   private resize(): void {
     const w = this.container.clientWidth || 1;
     const h = this.container.clientHeight || 1;
     const aspect = w / h;
-    // Frame the bay snugly: ~10 world units of half-height on wide screens, widening on narrow ones.
-    const halfH = Math.max(14.5, 17 / aspect);
+    // Frame the factory snugly; bigger factories zoom out in proportion.
+    const scale = Math.max(1, this.fit / 27);
+    const halfH = Math.max(14.5 * scale, (17 * scale) / aspect);
     this.camera.left = -halfH * aspect;
     this.camera.right = halfH * aspect;
     this.camera.top = halfH;

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { glowMaterial } from './glow';
+import { PLAZA_R, type Spot } from './layoutPlan';
 import type { Particles } from './Particles';
 import { box, cyl, shadowAll } from './util';
 
@@ -14,9 +15,7 @@ export interface Seat {
   surfaceY: number;
 }
 
-/** Centre of the plaza, in front of the bay. */
-export const PLAZA = new THREE.Vector3(0, 0, 10.5);
-export const PLAZA_RADIUS = 6.3;
+export const PLAZA_RADIUS = PLAZA_R;
 export const PLAZA_TOP = 0.06;
 
 const easeOutBack = (t: number): number => {
@@ -32,13 +31,10 @@ interface Part {
   p: number;
 }
 
-function rel(x: number, z: number): THREE.Vector3 {
-  return new THREE.Vector3(PLAZA.x + x, PLAZA_TOP, PLAZA.z + z);
-}
-
-/** Position relative to the plaza centre, for children of groups that sit at the plaza. */
-function local(x: number, z: number): THREE.Vector3 {
-  return new THREE.Vector3(x, PLAZA_TOP, z);
+interface Steam {
+  pot: THREE.Vector3;
+  cart: THREE.Vector3;
+  stall: Part;
 }
 
 function stripeTexture(): THREE.CanvasTexture {
@@ -78,42 +74,49 @@ function neonSign(text: string, color: string): THREE.Mesh {
 }
 
 /**
- * The break plaza: a ramen stall, coffee cart, tables, hammocks and string lights that unfold when the
- * factory goes idle and pack away when work resumes.
+ * Break plazas (one per bay): each has a ramen stall, coffee cart, tables, hammocks and string lights that
+ * unfold when workers go on break and pack away when everyone is busy.
  */
 export class Courtyard {
   readonly group = new THREE.Group();
   readonly seats: Seat[] = [];
   private parts: Part[] = [];
-  private potTop = new THREE.Vector3();
-  private cartTop = new THREE.Vector3();
+  private steams: Steam[] = [];
   private steamAcc = 0;
   private tmp = new THREE.Vector3();
 
-  constructor() {
-    const ground = cyl(PLAZA_RADIUS, PLAZA_RADIUS + 0.1, PLAZA_TOP, 0x8a8478, PLAZA.x, 0, PLAZA.z, 48);
-    const inner = cyl(PLAZA_RADIUS - 0.9, PLAZA_RADIUS - 0.9, PLAZA_TOP + 0.01, 0x9a9488, PLAZA.x, 0, PLAZA.z, 48);
-    this.group.add(ground, inner);
-
-    this.addPart(this.buildStall(), 0);
-    this.addPart(this.buildCart(), 0.15);
-    this.addPart(this.buildTables(), 0.3);
-    this.addPart(this.buildHammocks(), 0.45);
-    this.addPart(this.buildLights(), 0.6);
-    this.addStandingSeats();
+  constructor(plazas: Spot[]) {
+    for (const c of plazas) this.buildPlaza(c);
     shadowAll(this.group);
   }
 
-  private addPart(group: THREE.Group, delay: number): void {
-    group.scale.setScalar(0.001);
-    group.visible = false;
-    this.parts.push({ group, delay, wait: 0, p: 0 });
-    this.group.add(group);
+  private buildPlaza(c: Spot): void {
+    const ground = cyl(PLAZA_RADIUS, PLAZA_RADIUS + 0.1, PLAZA_TOP, 0x8a8478, c.x, 0, c.z, 48);
+    const inner = cyl(PLAZA_RADIUS - 0.9, PLAZA_RADIUS - 0.9, PLAZA_TOP + 0.01, 0x9a9488, c.x, 0, c.z, 48);
+    this.group.add(ground, inner);
+
+    const stall = this.addPart(this.buildStall(c), 0);
+    const cart = this.buildCart(c);
+    this.addPart(cart.group, 0.15);
+    this.addPart(this.buildTables(c), 0.3);
+    this.addPart(this.buildHammocks(c), 0.45);
+    this.addPart(this.buildLights(c), 0.6);
+    this.addStandingSeats(c);
+    this.steams.push({ pot: new THREE.Vector3(c.x - 2.2 + 0.9, 1.7, c.z - 4.2 - 0.05), cart: cart.top, stall });
   }
 
-  private buildStall(): THREE.Group {
+  private addPart(group: THREE.Group, delay: number): Part {
+    group.scale.setScalar(0.001);
+    group.visible = false;
+    const part = { group, delay, wait: 0, p: 0 };
+    this.parts.push(part);
+    this.group.add(group);
+    return part;
+  }
+
+  private buildStall(c: Spot): THREE.Group {
     const g = new THREE.Group();
-    g.position.copy(rel(-2.2, -4.2));
+    g.position.set(c.x - 2.2, PLAZA_TOP, c.z - 4.2);
     g.add(box(3.6, 1.0, 1.1, 0x7a3b2a), box(3.9, 0.1, 1.4, 0xd9b27c, 0, 1.0, 0.05));
     for (const x of [-1.8, 1.8]) g.add(cyl(0.08, 0.08, 3.1, 0x4b2e1f, x, 0, -0.5, 8));
     const awningTex = stripeTexture();
@@ -130,15 +133,13 @@ export class Courtyard {
       lantern.position.set(x, 2.55, 0.95);
       g.add(lantern);
     }
-    // Noodle pot and bowl stack.
     g.add(cyl(0.34, 0.3, 0.4, 0x2b2f3a, 0.9, 1.1, -0.05, 14), cyl(0.24, 0.24, 0.25, 0xf5f0e6, -0.9, 1.1, 0.1, 12), cyl(0.24, 0.24, 0.25, 0xf5f0e6, -0.9, 1.35, 0.1, 12));
-    this.potTop.set(g.position.x + 0.9, 1.7, g.position.z - 0.05);
     return g;
   }
 
-  private buildCart(): THREE.Group {
+  private buildCart(c: Spot): { group: THREE.Group; top: THREE.Vector3 } {
     const g = new THREE.Group();
-    g.position.copy(rel(3.6, -4.2));
+    g.position.set(c.x + 3.6, PLAZA_TOP, c.z - 4.2);
     g.add(box(2.2, 0.9, 1.0, 0x2f8f83, 0, 0.25), box(2.4, 0.08, 1.2, 0xe8e2d4, 0, 1.15));
     for (const x of [-0.8, 0.8]) {
       const w = cyl(0.28, 0.28, 0.1, 0x1c1e24, x, 0, 0.55, 12);
@@ -151,55 +152,49 @@ export class Courtyard {
     brolly.position.set(0, 4.05, -0.3);
     g.add(brolly);
     g.add(cyl(0.22, 0.22, 0.5, 0xb8bec9, 0.6, 1.23, 0, 10), cyl(0.08, 0.08, 0.2, 0x2b2f3a, 0.6, 1.73, 0, 8));
-    this.cartTop.set(g.position.x + 0.6, 2.1, g.position.z);
-    return g;
+    return { group: g, top: new THREE.Vector3(g.position.x + 0.6, 2.1, g.position.z) };
   }
 
-  private buildTables(): THREE.Group {
+  private buildTables(c: Spot): THREE.Group {
     const g = new THREE.Group();
-    g.position.set(PLAZA.x, 0, PLAZA.z);
+    g.position.set(c.x, 0, c.z);
     const centres: [number, number][] = [[-3.2, -0.6], [0.2, 0.6], [3.4, -0.4]];
     centres.forEach(([cx, cz], ti) => {
-      const c = local(cx, cz);
-      g.add(cyl(0.12, 0.12, 0.75, 0x8a8f9a, c.x, PLAZA_TOP, c.z, 8), cyl(0.78, 0.78, 0.08, 0xe6d3a8, c.x, PLAZA_TOP + 0.75, c.z, 16));
+      g.add(cyl(0.12, 0.12, 0.75, 0x8a8f9a, cx, PLAZA_TOP, cz, 8), cyl(0.78, 0.78, 0.08, 0xe6d3a8, cx, PLAZA_TOP + 0.75, cz, 16));
       for (let k = 0; k < 4; k++) {
         const a = Math.PI / 4 + (k * Math.PI) / 2 + ti * 0.35;
-        const sx = c.x + Math.cos(a) * 1.15;
-        const sz = c.z + Math.sin(a) * 1.15;
+        const sx = cx + Math.cos(a) * 1.15;
+        const sz = cz + Math.sin(a) * 1.15;
         g.add(cyl(0.12, 0.12, 0.45, 0x8a5a2b, sx, PLAZA_TOP, sz, 8), cyl(0.26, 0.26, 0.07, 0xb9763a, sx, PLAZA_TOP + 0.45, sz, 12));
-        // Bowl of noodles in front of each seat.
-        const bx = c.x + Math.cos(a) * 0.45;
-        const bz = c.z + Math.sin(a) * 0.45;
+        const bx = cx + Math.cos(a) * 0.45;
+        const bz = cz + Math.sin(a) * 0.45;
         g.add(cyl(0.2, 0.15, 0.12, 0xf5f0e6, bx, PLAZA_TOP + 0.83, bz, 12), cyl(0.17, 0.17, 0.02, 0xe9c46a, bx, PLAZA_TOP + 0.95, bz, 10));
-        this.seats.push({ pos: new THREE.Vector3(PLAZA.x + sx, 0, PLAZA.z + sz), face: Math.atan2(c.x - sx, c.z - sz), kind: 'ramen', surfaceY: PLAZA_TOP + 0.52 });
+        this.seats.push({ pos: new THREE.Vector3(c.x + sx, 0, c.z + sz), face: Math.atan2(cx - sx, cz - sz), kind: 'ramen', surfaceY: PLAZA_TOP + 0.52 });
       }
     });
     return g;
   }
 
-  private buildHammocks(): THREE.Group {
+  private buildHammocks(c: Spot): THREE.Group {
     const g = new THREE.Group();
-    g.position.set(PLAZA.x, 0, PLAZA.z);
+    g.position.set(c.x, 0, c.z);
     for (const [cx, cz] of [[-3.4, 3.4], [3.2, 3.6]] as const) {
-      const c = local(cx, cz);
-      for (const s of [-1.6, 1.6]) g.add(cyl(0.08, 0.1, 1.7, 0x6b4a2b, c.x + s, PLAZA_TOP, c.z, 8));
-      const cloth = box(2.7, 0.06, 0.8, 0x4aa3a0, c.x, PLAZA_TOP + 0.76, c.z);
-      g.add(cloth, box(0.5, 0.05, 0.7, 0xf1e7d0, c.x - 0.95, PLAZA_TOP + 0.84, c.z));
-      this.seats.push({ pos: new THREE.Vector3(PLAZA.x + c.x, 0, PLAZA.z + c.z), face: 0, kind: 'nap', surfaceY: PLAZA_TOP + 0.84 });
+      for (const s of [-1.6, 1.6]) g.add(cyl(0.08, 0.1, 1.7, 0x6b4a2b, cx + s, PLAZA_TOP, cz, 8));
+      g.add(box(2.7, 0.06, 0.8, 0x4aa3a0, cx, PLAZA_TOP + 0.76, cz), box(0.5, 0.05, 0.7, 0xf1e7d0, cx - 0.95, PLAZA_TOP + 0.84, cz));
+      this.seats.push({ pos: new THREE.Vector3(c.x + cx, 0, c.z + cz), face: 0, kind: 'nap', surfaceY: PLAZA_TOP + 0.84 });
     }
     return g;
   }
 
-  private buildLights(): THREE.Group {
+  private buildLights(c: Spot): THREE.Group {
     const g = new THREE.Group();
-    g.position.set(PLAZA.x, 0, PLAZA.z);
+    g.position.set(c.x, 0, c.z);
     const colors = [0xffd166, 0xff6b9d, 0x6bd6ff, 0xa5f26b];
-    const mats = colors.map((c) => glowMaterial(c, 0.25, 2.2));
+    const mats = colors.map((col) => glowMaterial(col, 0.25, 2.2));
     const bulb = new THREE.SphereGeometry(0.09, 8, 6);
-    const strands: [number, number][] = [[-2.2, 1], [1.8, -1]];
-    for (const [z0] of strands) {
-      const a = local(-5.6, z0);
-      const b = local(5.6, z0);
+    for (const z0 of [-2.2, 1]) {
+      const a = new THREE.Vector3(-5.6, PLAZA_TOP, z0);
+      const b = new THREE.Vector3(5.6, PLAZA_TOP, z0);
       for (const p of [a, b]) g.add(cyl(0.06, 0.07, 3.6, 0x4b2e1f, p.x, PLAZA_TOP, p.z, 6));
       const pts: THREE.Vector3[] = [];
       const n = 18;
@@ -219,10 +214,9 @@ export class Courtyard {
     return g;
   }
 
-  private addStandingSeats(): void {
+  private addStandingSeats(c: Spot): void {
     const put = (x: number, z: number, face: number, kind: BreakRole): void => {
-      const p = rel(x, z);
-      this.seats.push({ pos: new THREE.Vector3(p.x, 0, p.z), face, kind, surfaceY: PLAZA_TOP });
+      this.seats.push({ pos: new THREE.Vector3(c.x + x, 0, c.z + z), face, kind, surfaceY: PLAZA_TOP });
     };
     for (const [x, z] of [[2.0, -2.9], [2.9, -2.9], [3.8, -2.9], [4.7, -2.9], [3.4, -2.2]] as const) put(x, z, Math.PI, 'coffee');
     for (const [x, z] of [[-3.6, -2.9], [-2.4, -2.9], [-1.2, -2.9], [-4.8, -2.4]] as const) put(x, z, Math.PI, 'news');
@@ -242,13 +236,16 @@ export class Courtyard {
       p.group.scale.setScalar(p.p <= 0.001 ? 0.001 : p.p >= 1 ? 1 : Math.max(0.001, easeOutBack(p.p)));
     }
 
-    // Steam from the noodle pot and coffee machine.
-    if (idle && this.parts[0].p > 0.9) {
+    // Steam from each noodle pot and coffee machine.
+    if (idle) {
       this.steamAcc += dt * 9;
       while (this.steamAcc >= 1) {
         this.steamAcc -= 1;
-        fx.emit(this.tmp.copy(this.potTop), new THREE.Vector3((Math.random() - 0.5) * 0.2, 0.7, (Math.random() - 0.5) * 0.2), { color: 0xffffff, size0: 0.25, size1: 0.9, life: 1.6, alpha: 0.35, drag: 0.5 });
-        if (Math.random() < 0.5) fx.emit(this.tmp.copy(this.cartTop), new THREE.Vector3(0, 0.6, 0), { color: 0xffffff, size0: 0.15, size1: 0.6, life: 1.2, alpha: 0.3, drag: 0.5 });
+        for (const s of this.steams) {
+          if (s.stall.p <= 0.9) continue;
+          fx.emit(this.tmp.copy(s.pot), new THREE.Vector3((Math.random() - 0.5) * 0.2, 0.7, (Math.random() - 0.5) * 0.2), { color: 0xffffff, size0: 0.25, size1: 0.9, life: 1.6, alpha: 0.35, drag: 0.5 });
+          if (Math.random() < 0.5) fx.emit(this.tmp.copy(s.cart), new THREE.Vector3(0, 0.6, 0), { color: 0xffffff, size0: 0.15, size1: 0.6, life: 1.2, alpha: 0.3, drag: 0.5 });
+        }
       }
     }
   }

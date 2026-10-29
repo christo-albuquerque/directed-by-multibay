@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { FactoryState, Product, ProductStatus } from '../sim/factory';
 import { testPose } from './choreography';
 import { PATH_X, pathPosition } from './layout';
-import type { Particles } from './Particles';
+import type { Emitter } from './Particles';
 import { sfx } from '../ui/sfx';
 import { box, makeLabel, shadowAll } from './util';
 
@@ -215,7 +215,7 @@ export class ProductView {
     return null;
   }
 
-  update(state: FactoryState, elapsed: number, fx: Particles): void {
+  update(state: FactoryState, elapsed: number, fx: Emitter): void {
     const live = new Set<number>();
     for (const p of state.products) {
       live.add(p.id);
@@ -236,7 +236,7 @@ export class ProductView {
   }
 
   /** Stamp slams down, then a trapdoor opens and the box drops out of the factory. */
-  private cancelPose(v: View, p: Product, pos: THREE.Vector3, fx: Particles): void {
+  private cancelPose(v: View, p: Product, pos: THREE.Vector3, fx: Emitter): void {
     const a = p.age;
     v.stamp.visible = a < 0.95;
     const hit = a >= 0.35;
@@ -265,7 +265,7 @@ export class ProductView {
     v.group.visible = a < 3.0;
   }
 
-  private pose(v: View, p: Product, elapsed: number, fx: Particles): void {
+  private pose(v: View, p: Product, elapsed: number, fx: Emitter): void {
     const pos = pathPosition(p.u, this.tmp);
     let scaleY = 1;
     let shake = 0;

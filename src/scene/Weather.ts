@@ -2,11 +2,7 @@ import * as THREE from 'three';
 import { sfx } from '../ui/sfx';
 import { rng } from './util';
 
-const DROPS = 700;
-const X0 = -17;
-const X1 = 19;
-const Z0 = -9;
-const Z1 = 18;
+const DROPS = 900;
 const TOP = 11;
 const FALL = 22;
 
@@ -23,6 +19,34 @@ export class Weather {
   private on = false;
   private base = new THREE.Color(0xdfe6ee);
   private dark = new THREE.Color(0x6a7589);
+  private x0 = -17;
+  private x1 = 19;
+  private z0 = -9;
+  private z1 = 18;
+
+  /** Makes the storm cover the whole factory, however many bays it has. */
+  setBounds(b: { x0: number; x1: number; z0: number; z1: number }): void {
+    this.x0 = b.x0 - 2;
+    this.x1 = b.x1 + 2;
+    this.z0 = b.z0 - 2;
+    this.z1 = b.z1 + 2;
+    const rand = rng(33);
+    this.clouds.forEach((c, i) => {
+      c.position.set(this.x0 + (i / this.clouds.length) * (this.x1 - this.x0), 12 + rand() * 1.5, this.z0 - 4 + rand() * 9);
+    });
+    this.setBoundsRain();
+  }
+
+  /** Scatters the initial raindrops through the current bounds. */
+  private setBoundsRain(): void {
+    const rand = rng(34);
+    for (let i = 0; i < DROPS; i++) {
+      const x = this.x0 + rand() * (this.x1 - this.x0);
+      const z = this.z0 + rand() * (this.z1 - this.z0);
+      const y = rand() * TOP;
+      this.pos.set([x, y, z, x + 0.12, y + 0.7, z], i * 6);
+    }
+  }
 
   constructor() {
     const rand = rng(33);
@@ -41,12 +65,7 @@ export class Weather {
       this.group.add(c);
     }
 
-    for (let i = 0; i < DROPS; i++) {
-      const x = X0 + rand() * (X1 - X0);
-      const y = rand() * TOP;
-      const z = Z0 + rand() * (Z1 - Z0);
-      this.pos.set([x, y, z, x + 0.12, y + 0.7, z], i * 6);
-    }
+    this.setBoundsRain();
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
     this.rain = new THREE.LineSegments(geo, this.rainMat);
@@ -82,8 +101,8 @@ export class Weather {
       this.pos[o] += 2.2 * dt;
       this.pos[o + 3] += 2.2 * dt;
       if (this.pos[o + 1] < 0) {
-        const x = X0 + Math.random() * (X1 - X0);
-        const z = Z0 + Math.random() * (Z1 - Z0);
+        const x = this.x0 + Math.random() * (this.x1 - this.x0);
+        const z = this.z0 + Math.random() * (this.z1 - this.z0);
         this.pos[o] = x;
         this.pos[o + 3] = x + 0.12;
         this.pos[o + 2] = z;

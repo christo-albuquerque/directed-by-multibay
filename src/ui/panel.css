@@ -32,6 +32,9 @@
 .demo-panel .mode[data-mode="running"] { background: #1d6f4a; }
 .demo-panel .mode[data-mode="failure"] { background: #b3261e; }
 .demo-panel .mode[data-mode="release"] { background: #8a5a00; }
+.demo-panel .target { align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 11px; opacity: 0.85; }
+.demo-panel .target select { flex: 1; min-width: 0; padding: 4px; border-radius: 6px; border: 1px solid #334155; background: #0b1220; color: inherit; font: inherit; }
+.demo-panel.collapsed .target { display: none !important; }
 .demo-panel .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .demo-panel button {
   padding: 7px 6px;

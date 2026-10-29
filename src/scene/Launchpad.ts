@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PATH_X, TRUCK_PAD_X } from './layout';
 import { sfx } from '../ui/sfx';
 import { glowMaterial } from './glow';
-import type { Particles } from './Particles';
+import type { Emitter } from './Particles';
 import { box, cyl, makeLabel, mat, shadowAll } from './util';
 
 /** Seconds of countdown before liftoff, measured from the start of the launching status. */
@@ -112,7 +112,7 @@ export class Launchpad {
   }
 
   /** `launchAge` = seconds since a product began launching, or null when nothing is launching. */
-  update(dt: number, elapsed: number, launchAge: number | null, fx: Particles): void {
+  update(dt: number, elapsed: number, launchAge: number | null, fx: Emitter): void {
     this.updateCrane(launchAge);
     if (launchAge === null) {
       this.lifted = false;
