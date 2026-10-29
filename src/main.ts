@@ -1,49 +1,63 @@
-import * as THREE from 'three';
+import { FactoryState } from './sim/factory';
+import { Bay } from './scene/Bay';
+import { Launchpad } from './scene/Launchpad';
+import { Lighting } from './scene/Lighting';
+import { addStars, buildPlanet } from './scene/Planet';
+import { ProductView } from './scene/ProductView';
+import { World } from './scene/World';
+import { DemoPanel } from './ui/DemoPanel';
 
 const container = document.getElementById('app') as HTMLElement;
+const world = new World(container);
+const state = new FactoryState();
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-container.appendChild(renderer.domElement);
+buildPlanet(world.scene);
+addStars(world.camera);
+const lighting = new Lighting(world.scene);
+const bay = new Bay('BAY 1 · multibay-testlot');
+const launchpad = new Launchpad();
+const products = new ProductView();
+world.scene.add(bay.group, launchpad.group, products.group);
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0b0f1a);
-
-const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-camera.position.set(4, 3.5, 5);
-camera.lookAt(0, 0, 0);
-
-scene.add(new THREE.HemisphereLight(0xfff1d6, 0x223344, 1.1));
-const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-sun.position.set(5, 8, 4);
-scene.add(sun);
-
-// Placeholder "grain": a capsule, to prove the pipeline works end to end.
-const grain = new THREE.Mesh(
-  new THREE.CapsuleGeometry(0.5, 1, 6, 16),
-  new THREE.MeshStandardMaterial({ color: 0xf0eae1, flatShading: true }),
-);
-grain.position.y = 1;
-scene.add(grain);
-
-const ground = new THREE.Mesh(
-  new THREE.CylinderGeometry(4, 4, 0.3, 48),
-  new THREE.MeshStandardMaterial({ color: 0x8a4b3a, flatShading: true }),
-);
-ground.position.y = -0.15;
-scene.add(ground);
-
-function resize(): void {
-  const { clientWidth: w, clientHeight: h } = container;
-  renderer.setSize(w, h);
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
+// Demo scripting: timers for the auto "full cycle" so a button press can be cancelled by the next one.
+let cycleTimers: number[] = [];
+function stopCycle(): void {
+  cycleTimers.forEach(clearTimeout);
+  cycleTimers = [];
 }
-window.addEventListener('resize', resize);
-resize();
+function fullCycle(): void {
+  stopCycle();
+  const steps: [number, () => void][] = [
+    [0, () => state.spawn({ label: 'main#1' })],
+    [5000, () => state.spawn({ failAt: 'build', label: 'pr-12' })],
+    [12000, () => state.spawn({ label: 'main#2' })],
+    [16000, () => state.spawn({ failAt: 'test', label: 'pr-13' })],
+    [20000, () => state.spawn({ label: 'main#3' })],
+    [22000, () => state.cancelAll()],
+  ];
+  cycleTimers = steps.map(([ms, fn]) => window.setTimeout(fn, ms));
+}
 
-renderer.setAnimationLoop((t) => {
-  grain.rotation.y = t / 1000;
-  grain.position.y = 1 + Math.sin(t / 400) * 0.1;
-  renderer.render(scene, camera);
+const panel = new DemoPanel(document.body, [
+  { label: '▶ Success run', run: () => state.spawn() },
+  { label: '✖ Fail @ lint', run: () => state.spawn({ failAt: 'lint' }) },
+  { label: '✖ Fail @ build', run: () => state.spawn({ failAt: 'build' }) },
+  { label: '✖ Fail @ test', run: () => state.spawn({ failAt: 'test' }) },
+  { label: '⏹ Cancel all', run: () => state.cancelAll() },
+  { label: '⚡ Speed ×2', run: () => (state.speed = state.speed > 0.4 ? 0.35 : 0.8) },
+  { label: '🎬 Full cycle', run: fullCycle, wide: true },
+]);
+
+world.onUpdate((dt, elapsed) => {
+  state.update(dt);
+  const mode = state.mode;
+  lighting.update(dt, mode);
+  bay.update(dt, elapsed, mode, state);
+  launchpad.update(dt, elapsed, state.launchAge);
+  products.update(state, elapsed);
+  panel.update(mode, state.stats);
 });
+
+world.start();
+// Handy for poking at the sim from the console during development.
+(window as unknown as { __factory: FactoryState }).__factory = state;

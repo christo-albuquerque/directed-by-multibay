@@ -1,0 +1,51 @@
+.demo-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 232px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(12, 16, 28, 0.88);
+  color: #f0eae1;
+  font: 13px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+}
+.demo-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.demo-panel header strong { letter-spacing: 0.06em; font-size: 12px; }
+.demo-panel .mode {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: #334155;
+}
+.demo-panel .mode[data-mode="running"] { background: #1d6f4a; }
+.demo-panel .mode[data-mode="failure"] { background: #b3261e; }
+.demo-panel .mode[data-mode="release"] { background: #8a5a00; }
+.demo-panel .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.demo-panel button {
+  padding: 7px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: #26324a;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.demo-panel button:hover { background: #33425f; }
+.demo-panel button.wide { grid-column: 1 / -1; background: #7a3b12; }
+.demo-panel button.wide:hover { background: #944a1a; }
+.demo-panel .stats { margin-top: 8px; opacity: 0.75; font-size: 11px; }
+.demo-panel.collapsed .grid,
+.demo-panel.collapsed .stats { display: none; }
+.demo-panel.collapsed header { margin-bottom: 0; }
