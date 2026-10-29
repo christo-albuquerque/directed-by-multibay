@@ -47,8 +47,10 @@ const VERT = /* glsl */ `
   void main() {
     vAlpha = aAlpha;
     vColor = aColor;
-    gl_PointSize = aSize * uPx;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    // Perspective camera: apparent size falls off with distance.
+    gl_PointSize = clamp(aSize * uPx / max(0.1, -mv.z), 0.0, 220.0);
+    gl_Position = projectionMatrix * mv;
   }
 `;
 
@@ -120,10 +122,11 @@ export class Particles implements Emitter {
     }
   }
 
-  update(dt: number, camera: THREE.OrthographicCamera, renderer: THREE.WebGLRenderer): void {
-    // World units -> pixels for an orthographic camera.
+  update(dt: number, camera: THREE.Camera, renderer: THREE.WebGLRenderer): void {
+    // World units -> pixels at unit distance for a perspective camera.
     const heightPx = renderer.domElement.height;
-    this.uniforms.uPx.value = heightPx / ((camera.top - camera.bottom) / camera.zoom);
+    const fov = camera instanceof THREE.PerspectiveCamera ? THREE.MathUtils.degToRad(camera.fov) : 0.7;
+    this.uniforms.uPx.value = heightPx / (2 * Math.tan(fov / 2));
 
     for (let i = 0; i < CAPACITY; i++) {
       if (this.age[i] >= this.life[i]) {

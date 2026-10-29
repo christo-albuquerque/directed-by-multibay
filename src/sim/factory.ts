@@ -22,6 +22,8 @@ export interface Product {
   target?: number;
   /** Pull-request style build: goes out on a courier drone instead of a rocket. Demo runs set this directly. */
   pr?: boolean;
+  /** The furthest the picture lets this product get (set by the world), so the sim never outruns what is on screen. */
+  cap?: number;
   /** Latest snapshot of the real GitHub run behind this product. */
   run?: NormalizedRun;
   progress?: RunProgress;
@@ -148,6 +150,7 @@ export class FactoryState {
           const gap = goal - p.u;
           if (gap > 0) p.u += Math.min(gap, Math.max(this.speed, gap * 0.8) * dt);
         }
+        if (p.cap !== undefined && p.u > p.cap) p.u = p.cap;
         if (p.failAt !== null && p.u >= p.failAt + 0.5) {
           p.u = p.failAt + 0.5;
           p.status = 'failed';
