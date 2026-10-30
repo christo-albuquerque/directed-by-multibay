@@ -15,6 +15,8 @@ Live site: https://christo-albuquerque.github.io/directed-by-multibay/
 | ![A break plaza beside a line: ramen tables, a coffee cart, hammocks and string lights](docs/break-plaza.jpg) | ![Rain and lightning rolling over the planet](docs/storm.jpg) |
 | **Break plaza:** every line has one. Grains eat ramen, sip coffee, read the paper, blow gum bubbles or nap, while others work. | **Weather:** random drizzle, rain and thunderstorms roll in every few minutes. It has nothing to do with build results. |
 
+The baseline for every part of the world (grains, vehicles, farms, mines, belts, each factory station, break rooms, cities, villages, markets, landscape, space, data, controls) lives in [docs/modules](docs/modules/README.md). Read the module file before changing something and update it after; `npm test` checks that the documented invariants still hold.
+
 The full design lives in [SPEC.md](SPEC.md). Everything is generated in code: no third-party models, textures, fonts or audio. Dependencies must be permissive-licensed (checked in CI).
 
 ## Using it

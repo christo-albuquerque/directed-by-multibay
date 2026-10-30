@@ -4,6 +4,7 @@ import { R, lonLatDir } from '../globe/surface';
 import { noise3, reliefAt } from '../globe/terrain';
 import { ZONES, zoneWeight } from '../globe/zones';
 import { M, Prefab, StaticBatch, glowMat } from './kit';
+import { nearCorridor, registerCorridor } from './corridors';
 import { colouredGeometry, surfaceMatrix } from './pools';
 
 /** Deterministic random numbers: the planet is the same every visit. */
@@ -96,7 +97,7 @@ function placeAt(dir: THREE.Vector3, scale: number, lift = 0, out = new THREE.Ma
 function inDistrict(dir: THREE.Vector3, margin: number): boolean {
   for (const z of ZONES) if (zoneWeight(z, dir, margin) > 0) return true;
   for (const a of avoid) if (a.dir.angleTo(dir) * R < a.r + margin) return true;
-  return false;
+  return nearCorridor(dir, margin);
 }
 
 /** Small built-up spots outside the districts (break plazas) that the wilderness must keep clear. */
@@ -149,7 +150,8 @@ export class Scatter {
   private kinds: Kind[] = [];
 
   constructor(batch: StaticBatch, keepClear: { dir: THREE.Vector3; r: number }[] = []) {
-    avoid = keepClear;    const kinds = this.kinds;
+    avoid = keepClear;
+    const kinds = this.kinds;
     const kind = (prefab: Prefab, lo: number, hi: number, tint = true): Kind => {
       const k: Kind = { prefab, scale: [lo, hi], items: [], tint };
       kinds.push(k);
@@ -164,6 +166,8 @@ export class Scatter {
     const solars = kind(solar(), 1, 1.4);
     const masts = kind(mast(), 0.9, 1.4);
     const lamps = kind(lamp(), 1, 1);
+
+    buildRoads();
 
     // Wilderness: every direction on a golden spiral, kept if it is clear of districts and not too close to a road.
     const N = 22000;
@@ -227,7 +231,8 @@ export class Scatter {
       }
     }
 
-    // Roads with lamp posts.
+    // Roads with lamp posts. Built before any scenery so everything else can keep clear of them.
+    function buildRoads(): void {
     const asphalt = M(0x24262d, { rough: 0.9 });
     const verge = M(0x4a4338);
     for (const def of ROADS) {
@@ -246,6 +251,8 @@ export class Scatter {
         const p = s.pos.clone().addScaledVector(side, off).addScaledVector(s.up, -0.3);
         if (!inDistrict(p.clone().normalize(), 0)) lamps.items.push(surfaceMatrix(p, s.tangent, s.up, new THREE.Matrix4()));
       }
+      registerCorridor(path, def.width / 2 + 1.2);
+    }
     }
 
     // Villages and low-rise districts: scattered over the whole planet, thicker toward the equatorial ring.

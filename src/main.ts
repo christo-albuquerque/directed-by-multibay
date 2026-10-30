@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { auditCorridors } from './world/corridors';
 import { getToken, labelsFor, loadConfig, loadDefaultRepos, loadSavedRepos, resolveRepos, saveRepos, setToken } from './config';
 import { GitHubPoller, type PollerMeta } from './data/github';
 import { GlobeWorld } from './globe/GlobeWorld';
@@ -242,6 +243,7 @@ async function boot(): Promise<void> {
   const debug = window as unknown as { __world: GlobeWorld; __planet: PlanetWorld; __R: number; __poller: GitHubPoller };
   debug.__world = world;
   debug.__planet = planet;
+  (window as unknown as { __audit: typeof auditCorridors }).__audit = auditCorridors;
   debug.__R = R;
   debug.__poller = poller;
   world.start();

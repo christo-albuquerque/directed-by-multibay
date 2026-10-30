@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { SurfacePath } from '../globe/path';
+import { registerCorridor } from './corridors';
 import { surfaceMatrix } from './pools';
 import { M, Prefab, type StaticBatch } from './kit';
 
@@ -35,6 +36,7 @@ export class BeltSurface {
 
 /** A belt (or road) following a path as a flat ribbon on the planet's surface. */
 export function ribbonMesh(path: SurfacePath, halfWidth: number, mat: THREE.Material, lift = 0): THREE.Mesh {
+  if (halfWidth >= 0.5 && lift < 0.5) registerCorridor(path, halfWidth);
   const r = path.ribbon(halfWidth, lift);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(r.positions, 3));

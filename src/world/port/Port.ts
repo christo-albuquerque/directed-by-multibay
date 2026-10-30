@@ -5,6 +5,7 @@ import { ZONES, zoneChart, type Zone } from '../../globe/zones';
 import type { Product } from '../../sim/factory';
 import { sfx } from '../../ui/sfx';
 import { ribbonMesh } from '../belts';
+import { registerCorridor } from '../corridors';
 import { Dyn } from '../dyn';
 import { M, Prefab, StaticBatch, bentDisc, glowMat, setGlow } from '../kit';
 import type { Line } from '../line/Line';
@@ -166,6 +167,7 @@ export class Port {
       // Drop duplicate/near points that would kink the curve.
       const clean = pts.filter((p, k) => k === 0 || p.distanceTo(pts[k - 1]) > 4);
       const road = SurfacePath.through3D(clean, 1.2);
+      registerCorridor(road, 2.4);
       this.roads.push(road);
       for (const slot of [0, 1]) this.fleet.push({ line: i, state: slot === 0 ? 'wait' : 'return', s: slot === 0 ? 0 : road.length * (0.3 + Math.random() * 0.5), t: Math.random() * 3, load: slot === 0 ? 0.4 : 0, carrying: null, slot });
     });

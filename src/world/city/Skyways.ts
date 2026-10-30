@@ -54,17 +54,17 @@ export class Skyways {
   constructor() {
     const L = (pts: [number, number][], h: number, count: number, speed: number): void => void this.lanes.push({ path: loop(pts, h), count, speed });
     // City rings and a figure-eight above the market.
-    L([[-30, -2], [-18, -16], [0, -22], [18, -16], [30, -2], [18, 8], [0, 12], [-18, 8]], 14, 9, 17);
-    L([[-24, -10], [0, 2], [24, -10], [24, -22], [0, -10], [-24, -22]], 22, 8, 21);
+    L([[-30, -2], [-18, -16], [0, -22], [18, -16], [30, -2], [18, 8], [0, 12], [-18, 8]], 24, 9, 17);
+    L([[-24, -10], [0, 2], [24, -10], [24, -22], [0, -10], [-24, -22]], 30, 8, 21);
     // Long commuter loops over the factory continent and out to the port.
-    L([[0, -8], [-24, 10], [-28, 26], [-24, 42], [0, 48], [24, 42], [28, 26], [24, 10]], 34, 10, 24);
+    L([[0, -8], [-24, 10], [-28, 26], [-24, 42], [0, 48], [24, 42], [28, 26], [24, 10]], 38, 10, 24);
     L([[0, -8], [30, 0], [58, 14], [74, 30], [58, 16], [30, -2]], 40, 8, 26);
     L([[0, -8], [-40, -2], [-66, 8], [-60, -22], [-30, -36], [10, -34], [50, -30], [66, -14], [40, 6]], 48, 9, 28);
     this.lanes.forEach((lane, li) => {
       for (let i = 0; i < lane.count; i++) this.cars.push({ lane: li, s: (i / lane.count) * lane.path.length, speed: lane.speed * (0.85 + Math.random() * 0.3), kind: (i + li) % 3, lateral: (Math.random() - 0.5) * 2.4 });
     });
     // Package drones on slower, lower loops between the market and the factories.
-    const dl = [loop([[0, -8], [-18, 6], [-24, 14], [-12, 4]], 9), loop([[0, -8], [18, 6], [24, 14], [12, 4]], 11), loop([[0, -8], [-26, 26], [-8, 40], [10, 26]], 16), loop([[0, -8], [26, 26], [8, 40], [-10, 26]], 18)];
+    const dl = [loop([[0, -8], [-18, 6], [-24, 14], [-12, 4]], 22), loop([[0, -8], [18, 6], [24, 14], [12, 4]], 24), loop([[0, -8], [-26, 26], [-8, 40], [10, 26]], 28), loop([[0, -8], [26, 26], [8, 40], [-10, 26]], 31)];
     dl.forEach((path, li) => {
       this.lanes.push({ path, count: 0, speed: 0 });
       for (let i = 0; i < 6; i++) this.drones.push({ lane: this.lanes.length - 1, s: (i / 6) * path.length, speed: 9 + Math.random() * 4, kind: li, lateral: 0 });
