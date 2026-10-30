@@ -10,6 +10,7 @@ All scenery that fills the planet between and around districts.
 - Fixed, deterministic world.
 
 ## Current implementation
+- **Mountains and lakes** (`globe/terrain.ts` `reliefAt`): ridged peaks up to 15 units with rock and snow colouring, lakes as flat basins at `WATER_LEVEL` (−2.8). A `landMask` keeps both 28+ units from districts and 12–28 units from roads (`world/roads.ts`: `ROADS`, `roadDistance`). Scenery skips lakes.
 - Terrain colours (`globe/terrain.ts`): forest floor, meadow, rocky waste from `noise3`, matching the scatter.
 - `world/scatter.ts` `Scatter(batch, keepClear)`:
   1. **Roads first** (`ROADS`): branch roads and an equatorial ring, with embankments (`roadGeometry`) and lamp posts; registered as corridors.
@@ -26,8 +27,8 @@ All scenery that fills the planet between and around districts.
 - Deterministic.
 
 ## Extension points
-- Mountains: add height-aware prefabs (cone rocks) and a relief bump in `reliefAt`; keep them out of zones and corridors. Rivers/lakes need a terrain tint and a bridge rule for roads.
+- Rivers need a bridge rule for roads; mountains must keep clear of every registered corridor.
 
 ## Known gaps
-- No mountain ranges or water yet; terrain relief is mild (0 to −2.1).
+- Mountains reach 15 units and are climbable by scenery only; lakes are flat colour (no reflections or boats).
 - Scatter does not follow terrain slope; scale is uniform.

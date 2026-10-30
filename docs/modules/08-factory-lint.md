@@ -17,10 +17,11 @@ Station 2: a worker polishes each crate. In GitHub terms: **lint / format**.
 ## Invariants
 - Open (not hidden) station, index 1, label LINT.
 - Polishers carry magnifier + duster.
+- Every crate that leaves lint (ambient or real) gets a sparkle burst (`Line.sparkle`).
 - A failure at lint puts smoke and the crew at lint.
 
 ## Extension points
-- Sparkle burst when a crate exits lint (particles via `env.fx`).
+- More polish effects (shine on the crate tint).
 
 ## Known gaps
-- No sparkle yet.
+- None open.

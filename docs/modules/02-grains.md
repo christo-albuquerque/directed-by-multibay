@@ -17,6 +17,7 @@ The workforce and population: tiny procedural grains with jobs and lives. They a
 - `src/world/crowd.ts`: `CrowdRenderer` draws every grain with instanced meshes (body, hat, arms, legs, eyes) plus one instanced mesh per **outfit** (overalls, husk, awn, sprout, goggles, cross, hazmat), per **prop** (chopsticks, cup, extinguisher, clipboard board, broom, wrench, magnifier, duster, glow stick, flag, newspaper, gum bubble, stretcher), carried crate and scooter. `LOOKS` defines the ten looks (rice, corn, wheat, quinoa, millet, basmati, medic, hazmat, punk, neon) with `girth`/`len` body shapes. Animation helpers: `walkLimbs`, `workLimbs(style)`, `styleProps(style)`. Work styles: hammer, polish, load, throw, clipboard, sweep, wave, sit, sip, spray, dance, ramen, coffee, news, gum, nap, treat, pack, cheer, inspect, repair.
 - `src/world/folk.ts`: **`Folk`** is the crowd of one build line. `Net` is a small walkway graph with Dijkstra routing so grains walk round machines. Each agent has a post and errands (piles to haul between, machines to repair, floors to sweep, stations to inspect, plaza seats). States: work, walk, do. Curved steering with a lazy weave; belt hop; `alarm()` makes off-duty grains run to posts; `cheer()`; incident reaction (testers gasp, then spray foam); `poke(id)`; `actionPose` (hop, flip, wave, stumble with dropped crate, gasp); `pokeAction` (squeak pitch per type).
 - `src/world/ambient.ts`: **`Ambient`** gives grains on paths (farm, mine, market) the same reactions: weave, random or stall stops, chores, carried boxes, scooters, clicking.
+- Villages: three `Ambient` villagers per plaza.
 - Per line (`Line.populate`): ~36 grains: station crews (rice/corn/wheat/basmati), 5 haulers (quinoa on scooters, millet runners), 2 maintenance + 2 inspectors, 6 plaza regulars; plus the rescue crew (2 hazmat, 2 medic) living at the hut.
 - Clicking: `PlanetWorld.pokeGrain` (grains within ~3.5% of the screen) is tried after run picking in `main.ts`.
 
@@ -33,6 +34,5 @@ The workforce and population: tiny procedural grains with jobs and lives. They a
 - New district population: use `Folk` (stations, schedules) or `Ambient` (paths).
 
 ## Known gaps
-- Villages have no grains yet.
 - Port crowd (loaders, drivers) and farm/mine crews use `Ambient`, not stations.
-- Not built: cache-hit scooter zip from an underground pneumatic tube; sparkle on lint pass; chewing-gum is only at plazas.
+- Gum bubbles only at plazas and markets.

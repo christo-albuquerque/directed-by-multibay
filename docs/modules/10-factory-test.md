@@ -15,6 +15,7 @@ Station 4: the testing grounds, where products are brutally tested. In GitHub te
 - TVs: `src/scene/Tv.ts` (`metrics`, `lab` modes, credits card). Two per arena, driven by `FactoryState` mode and stats.
 - Crew: wheat testers (`throw` style, `tester` flag), a basmati clipboard supervisor. On failure testers `gasp`, then `spray` extinguisher foam at the incident.
 - Rescue crew (hut at the west end): 2 hazmat (extinguishers) + 2 medic (stretchers), walking out from the hut to the failing station and back; black smoke plus a pulsing red point light; shared warning light in `PlanetWorld`.
+- Hazmat funnel (`props.ts` `funnel`) beside the hut: during an incident the crew's swept debris streams from the broken station into it (`Line.updateCrew`).
 - Cancelled runs: product stops, a giant CANCELLED stamp slams down, then the run slides into the scrap chute.
 
 ## Invariants
@@ -25,8 +26,8 @@ Station 4: the testing grounds, where products are brutally tested. In GitHub te
 
 ## Extension points
 - Extra test rooms (unit, e2e, perf): add stations with their own choreography; keep TV wiring.
-- Hazmat debris funnel (sweep to a funnel prop).
+- Funnel animations (debris tipping in).
 
 ## Known gaps
-- No hazmat funnel; "trapdoor" for cancel replaced by scrap chute.
+- "Trapdoor" for cancel is the scrap chute.
 - Only one arena style.

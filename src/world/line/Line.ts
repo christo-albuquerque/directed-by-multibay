@@ -12,6 +12,8 @@ import { BeltSurface, beltSupports, ribbonMesh } from '../belts';
 import { IDLE_LIMBS, LOOKS, walkLimbs, workLimbs, type GrainPose, type LookName, type WorkStyle } from '../crowd';
 import { Folk, Net, type AgentSpec, type Poi, type Pt } from '../folk';
 import { buildPlaza, cratePile } from './plaza';
+import { forkliftBody, forkliftForks, funnel, tubeHatch } from './props';
+import { hasCacheHit, matrixWidth } from '../../sim/runs';
 import { M, Prefab, StaticBatch, glowMat, setGlow } from '../kit';
 import { Dyn } from '../dyn';
 import { surfaceMatrix } from '../pools';
@@ -111,6 +113,10 @@ export class Line {
   /** The crowd that lives on this line: workers, haulers, repairers and everyone on a break. */
   folk!: Folk;
   private stamp!: Dyn;
+  private fx?: Env['fx'];
+  private funnelPos = new THREE.Vector3();
+  private lift?: { path: SurfacePath; body: Dyn; forks: Dyn; crate: Dyn; s: number; dir: 1 | -1; wait: number; h: number; loaded: boolean };
+  private zipped = new Set<number>();
   private spawnTimer = 2;
   private pressHeads: Dyn[] = [];
   private craneHeads: Dyn[] = [];
@@ -383,6 +389,57 @@ export class Line {
       const looks: LookName[] = ['rice', 'corn', 'millet', 'wheat', 'quinoa', 'rice'];
       folk.add({ look: looks[i], post: { ...seat, kind: 'post' }, errands: [...fixes, ...piles], lazy: 0.9 });
     }
+
+    // Pneumatic cache tube at the depot: couriers zip out of it on a cache hit.
+    folk.zipSpot = inspects[0];
+    batch.placeOn(tubeHatch(zone), this.chart, inspects[0].x + 1.6, inspects[0].z, PAD_TOP, 0);
+    // Hazmat funnel beside the rescue hut, where the crew dump swept-up debris.
+    this.funnelPos = this.chart.point(-39.2, -3.6, PAD_TOP + 2.4);
+    batch.placeOn(funnel(zone), this.chart, -39.2, -3.6, PAD_TOP, 0);
+    // A forklift shuttles pallets of boxes between two stacks at the east loading bay.
+    this.buildForklift(batch);
+  }
+
+  private buildForklift(batch: StaticBatch): void {
+    for (const x of [40.6, 50.4]) batch.placeOn(cratePile(), this.chart, x, 4.6, PAD_TOP, Math.PI / 2);
+    const path = SurfacePath.through(this.chart, [[42.8, 4.6], [48.2, 4.6]], PAD_TOP, false, 0.4);
+    this.lift = { path, body: new Dyn(forkliftBody(), new THREE.Matrix4(), this.group), forks: new Dyn(forkliftForks(), new THREE.Matrix4(), this.group), crate: new Dyn(new Prefab().box(0.8, 0.8, 0.8, M(0xb98a52), 0, 0, 0).box(0.84, 0.1, 0.84, M(0x8a6236), 0, 0.5, 0), new THREE.Matrix4(), this.group), s: 0, dir: 1, wait: 1.2, h: 0.1, loaded: true };
+  }
+
+  /** Drives the forklift: carry a crate to the far stack, set it down, go back, pick the next one up. */
+  private updateForklift(dt: number): void {
+    const f = this.lift;
+    if (!f) return;
+    const len = f.path.length;
+    if (f.wait > 0) {
+      f.wait -= dt;
+      // Forks rise to take a crate at the start, drop to set it down at the end.
+      const target = f.loaded ? 0.1 : 1.1;
+      f.h += (target - f.h) * Math.min(1, dt * 3);
+      if (f.wait <= 0) {
+        f.loaded = !f.loaded;
+        f.dir = (f.dir === 1 ? -1 : 1) as 1 | -1;
+        f.wait = 0;
+      }
+    } else {
+      f.s += f.dir * 2.4 * dt;
+      f.h += ((f.loaded ? 1.1 : 0.1) - f.h) * Math.min(1, dt * 3);
+      if ((f.dir === 1 && f.s >= len) || (f.dir === -1 && f.s <= 0)) {
+        f.s = Math.min(len, Math.max(0, f.s));
+        f.wait = 1.4;
+        // Arriving loaded: lower and release; arriving empty: lift the next crate.
+      }
+    }
+    f.path.at(f.s, tmpS);
+    surfaceMatrix(tmpP.copy(tmpS.pos), tmpV.copy(tmpS.tangent).multiplyScalar(f.dir), tmpS.up, tmpM);
+    f.body.mesh.matrix.copy(tmpM);
+    f.body.mesh.matrixWorldNeedsUpdate = true;
+    const fm = tmpM.clone().multiply(new THREE.Matrix4().makeTranslation(0, f.h, 0));
+    f.forks.mesh.matrix.copy(fm);
+    f.forks.mesh.matrixWorldNeedsUpdate = true;
+    f.crate.mesh.visible = f.loaded;
+    f.crate.mesh.matrix.copy(fm).multiply(new THREE.Matrix4().makeTranslation(0, 0.6, 1.65));
+    f.crate.mesh.matrixWorldNeedsUpdate = true;
   }
 
   /** Fills the belt with a plausible mid-shift spread so the line never starts empty. */
@@ -408,6 +465,7 @@ export class Line {
   }
 
   update(env: Env, night: number): void {
+    this.fx = env.fx;
     setGlow(this.zone.id, night);
     const act = this.repo ? Math.max(this.state.activity, 0.12) : 0.3;
     const speed = BELT_SPEED * (0.5 + 0.7 * act);
@@ -416,6 +474,7 @@ export class Line {
     this.updateBulk(env.dt, speed, act);
     this.updateExpress(env, speed * 1.5);
     this.updateCrew(env);
+    this.updateForklift(env.dt);
     if (env.camDist < 320) this.folk.update(env, { activity: this.repo ? this.state.activity : 0.3, incident: this.incident, incidentStation: this.incidentStation });
     this.smoke(env);
     if (env.camDist < 260) for (const tv of this.tvs) tv.update(this.state.mode, this.state.stats, env.elapsed);
@@ -451,6 +510,7 @@ export class Line {
           it.t = 0;
           if (it.stage === 3) it.kind = 'tested';
           st.occupant = null;
+          if (it.stage === 1) this.sparkle();
           it.stage++;
         }
       } else {
@@ -482,6 +542,11 @@ export class Line {
       if (!this.ex.has(p.id) && p.status === 'moving' && !this.dispatched.has(p.id)) {
         // A real run is born inside the depot housing, like everything else.
         this.ex.set(p.id, { product: p, s: this.stations[0].sExpress, stage: 0, mode: 'inside', to: 0, t: 0, kind: 'crate' });
+        // A cache hit: a courier zips in from the pneumatic tube on a scooter.
+        if (hasCacheHit(p.run?.jobs) && !this.zipped.has(p.id)) {
+          this.zipped.add(p.id);
+          this.folk.zip();
+        }
       }
     }
     for (const [id, e] of this.ex) {
@@ -510,6 +575,7 @@ export class Line {
             }
           } else if (p.status === 'moving' && e.t >= DWELL[e.stage] && p.u >= e.stage + 0.95) {
             if (e.stage === 3) e.kind = 'tested';
+            if (e.stage === 1) this.sparkle();
             e.mode = 'travel';
             e.to = e.stage < 4 ? this.stations[e.stage + 1].sExpress : len - 0.5;
             e.t = 0;
@@ -596,6 +662,12 @@ export class Line {
     const stage = failing ? Math.min(failing.failAt ?? 0, 4) : 0;
     this.incident = failing ? tmpP.set(0, 1.4, 0).applyMatrix4(this.stations[stage].matrix).clone() : null;
     this.incidentStation = failing ? stage : -1;
+    // The crew sweep burnt debris from the broken station into the hazmat funnel.
+    if (this.incident && env.camDist < 240 && Math.random() < env.dt * 9) {
+      tmpV.copy(this.funnelPos).sub(this.incident);
+      tmpV.multiplyScalar(0.22).addScaledVector(this.incident.clone().normalize(), 4.5);
+      env.fx.emit(this.incident, tmpV, { color: 0x3a3a3a, size0: 0.35, size1: 0.2, life: 3, alpha: 0.9, drag: 0.15 });
+    }
     this.crew.forEach((c, i) => {
       if (failing && c.mode === 'home' && failing.age > 0.8 + i * 0.5) {
         c.path = this.crewPath(stage, i);
@@ -699,7 +771,26 @@ export class Line {
     if (scaleY !== 1) tmpM.scale(new THREE.Vector3(1, scaleY, 1));
     const tint = p.status === 'failed' ? TINT.failed : p.status === 'cancelled' ? TINT.cancelled : TINT[e.kind];
     (e.kind === 'crate' ? pools.crates : pools.boxes).push(tmpM, tint);
+    // Matrix builds: sibling boxes travel in a convoy behind the real one, in sync with it.
+    const width = matrixWidth(p.run?.jobs);
+    for (let k = 1; k < width && e.mode !== 'reject'; k++) {
+      this.lanePos(this.express, Math.max(0, e.s - k * 1.15), tmpP, tmpV);
+      this.path(this.express, Math.max(0, e.s - k * 1.15));
+      surfaceMatrix(tmpP, tmpS.tangent, tmpS.up, tmpM);
+      (e.kind === 'crate' ? pools.crates : pools.boxes).push(tmpM, tint);
+    }
     if (p.status === 'cancelled' && e.mode === 'inside') this.showStamp(e, tmpP, tmpS.tangent, tmpS.up);
+  }
+
+  /** A shower of sparkles over the lint station: the crate has been polished clean. */
+  private sparkle(): void {
+    if (!this.fx) return;
+    const m = this.stations[1].matrix;
+    for (let i = 0; i < 16; i++) {
+      tmpP.set((Math.random() - 0.5) * 2.4, 1.2 + Math.random() * 0.8, (Math.random() - 0.5) * 2.4).applyMatrix4(m);
+      tmpV.copy(tmpP).normalize().multiplyScalar(1.4 + Math.random() * 1.6);
+      this.fx.emit(tmpP, tmpV, { color: i % 3 === 0 ? 0xffffff : 0xffe27a, size0: 0.35, size1: 0.05, life: 0.9, alpha: 1, drag: 0.5 });
+    }
   }
 
   /** A giant rubber stamp that slams down on a cancelled run, then lifts away. */

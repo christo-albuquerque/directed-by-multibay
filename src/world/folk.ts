@@ -252,6 +252,19 @@ export class Folk {
     }
   }
 
+  /** Where couriers go when a cache hit shoots out of the pneumatic tube. */
+  zipSpot: Poi | null = null;
+
+  /** A cache hit: a courier zips to the tube hatch on its scooter, then back to work. */
+  zip(): void {
+    const a = this.agents.find((x) => x.courier && x.mode !== 'walk') ?? this.agents.find((x) => x.courier);
+    if (!a || !this.zipSpot) return;
+    a.rush = 6;
+    a.carry = false;
+    a.haulTo = null;
+    this.send(a, this.zipSpot);
+  }
+
   /** Everyone nearby cheers (a rocket just left). */
   cheer(seconds = 7): void {
     this.cheerLeft = seconds;

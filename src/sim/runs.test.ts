@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { progressOf, stageOf, type JobInfo, type NormalizedRun } from './runs';
+import { hasCacheHit, matrixWidth, progressOf, stageOf, type JobInfo, type NormalizedRun } from './runs';
 
 function step(name: string, status: string, conclusion: string | null = null, number = 1) {
   return { name, status, conclusion, number };
@@ -111,5 +111,20 @@ describe('progressOf', () => {
     const p = progressOf(run({}, [job([step('Set up job', 'completed', 'success')], { name: 'build' })]));
     expect(p.outcome).toBe('running');
     expect(p.stage).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('matrix and cache helpers', () => {
+  const job = (name: string, steps = [] as ReturnType<typeof step>[]): JobInfo => ({ id: 1, name, status: 'completed', conclusion: 'success', startedAt: 0, completedAt: 1, steps });
+  it('counts the parallel jobs of a matrix build', () => {
+    expect(matrixWidth(null)).toBe(1);
+    expect(matrixWidth([job('lint'), job('build')])).toBe(1);
+    expect(matrixWidth([job('test (node 18)'), job('test (node 20)'), job('test (node 22)'), job('lint')])).toBe(3);
+    expect(matrixWidth(Array.from({ length: 9 }, (_, i) => job(`t (${i})`)))).toBe(4);
+  });
+  it('spots a successful cache step', () => {
+    expect(hasCacheHit([job('build', [step('Restore cache', 'completed', 'success')])])).toBe(true);
+    expect(hasCacheHit([job('build', [step('Restore cache', 'completed', 'failure')])])).toBe(false);
+    expect(hasCacheHit(null)).toBe(false);
   });
 });

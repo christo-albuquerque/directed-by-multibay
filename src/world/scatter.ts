@@ -5,6 +5,9 @@ import { noise3, reliefAt } from '../globe/terrain';
 import { ZONES, zoneWeight } from '../globe/zones';
 import { M, Prefab, StaticBatch, glowMat } from './kit';
 import { nearCorridor, registerCorridor } from './corridors';
+import { Ambient } from './ambient';
+import type { LookName } from './crowd';
+import { ROADS } from './roads';
 import { colouredGeometry, surfaceMatrix } from './pools';
 
 /** Deterministic random numbers: the planet is the same every visit. */
@@ -97,30 +100,13 @@ function placeAt(dir: THREE.Vector3, scale: number, lift = 0, out = new THREE.Ma
 function inDistrict(dir: THREE.Vector3, margin: number): boolean {
   for (const z of ZONES) if (zoneWeight(z, dir, margin) > 0) return true;
   for (const a of avoid) if (a.dir.angleTo(dir) * R < a.r + margin) return true;
+  // Lakes stay clear of trees, houses and lamps.
+  if (reliefAt(dir) < -2.4) return true;
   return nearCorridor(dir, margin);
 }
 
 /** Small built-up spots outside the districts (break plazas) that the wilderness must keep clear. */
 let avoid: { dir: THREE.Vector3; r: number }[] = [];
-
-// Roads are long ribbons with embankments so they never float above the bumpy ground.
-interface RoadDef {
-  pts: [number, number][];
-  width: number;
-}
-const ROADS: RoadDef[] = [
-  { pts: [[0, 51], [20, 52], [44, 50], [66, 46], [74, 40]], width: 3 },
-  { pts: [[16, -8], [30, -12], [48, -14]], width: 3 },
-  { pts: [[-16, -8], [-30, -8], [-50, -6]], width: 3 },
-  { pts: [[0, -19], [0, -40], [0, -70], [0, -110]], width: 3 },
-  { pts: [[-45, 28], [-60, 42], [-62, 56], [-30, 62], [-8, 60]], width: 2.6 },
-  { pts: [[62, -30], [90, -22], [118, -8], [140, 12]], width: 2.6 },
-  { pts: [[-60, -26], [-90, -22], [-120, -8], [-145, 14]], width: 2.6 },
-];
-// An equatorial ring that carries villages all the way round the planet.
-for (let i = 0; i <= 18; i++) ROADS.push({ pts: [], width: 0 });
-ROADS.length -= 19;
-ROADS.push({ pts: Array.from({ length: 19 }, (_, i): [number, number] => [-180 + i * 20, -34]), width: 2.8 });
 
 function roadGeometry(path: SurfacePath, half: number): THREE.BufferGeometry {
   const n = Math.ceil(path.length / 1.2);
@@ -147,6 +133,8 @@ function roadGeometry(path: SurfacePath, half: number): THREE.BufferGeometry {
 
 export class Scatter {
   readonly group = new THREE.Group();
+  /** Villagers: stroll loops round each village plaza. */
+  readonly ambient = new Ambient();
   private kinds: Kind[] = [];
 
   constructor(batch: StaticBatch, keepClear: { dir: THREE.Vector3; r: number }[] = []) {
@@ -291,6 +279,18 @@ export class Scatter {
         const d = centre.clone().addScaledVector(east, (Math.cos(ang) * 3.6) / R).addScaledVector(south, (Math.sin(ang) * 3.6) / R).normalize();
         batch.place(stalls[k % 3], placeAt(d, 1, 0.2));
         lamps.items.push(placeAt(centre.clone().addScaledVector(east, (Math.cos(ang + 1) * 5.4) / R).normalize(), 1, 0.2));
+      }
+      // Villagers stroll a loop round the plaza, stopping at the stalls.
+      const ring: THREE.Vector3[] = [];
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2;
+        const d = centre.clone().addScaledVector(east, (Math.cos(a) * 6.2) / R).addScaledVector(south, (Math.sin(a) * 6.2) / R).normalize();
+        ring.push(d.multiplyScalar(R + reliefAt(d) + 0.3));
+      }
+      const loop = SurfacePath.through3D([...ring, ring[0], ring[1]], 0.8);
+      const folk: LookName[] = ['rice', 'corn', 'millet', 'quinoa', 'wheat', 'basmati'];
+      for (let k = 0; k < 3; k++) {
+        this.ambient.add({ path: loop, s: (k / 3) * loop.length, speed: 0.9 + rand() * 0.8, look: folk[(villages + k) % folk.length], carry: k === 1 && rand() < 0.5, chores: ['coffee', 'news', 'gum', 'wave', 'inspect', 'sip'], dir: k === 2 ? -1 : 1 });
       }
       // Clear the ground around the plaza (no trees through the market).
     }

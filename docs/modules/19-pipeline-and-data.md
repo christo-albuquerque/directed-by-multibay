@@ -25,4 +25,4 @@ Turns real (or demo) GitHub Actions runs into products travelling through the fa
 - Max 6 repos; config needs no code change.
 
 ## Known gaps
-- Matrix builds fan out as lanes; `status.json` push model; Demo Panel lacks an activity slider and a weather button.
+- `status.json` push model; Demo Panel lacks an activity slider, a matrix/cache button and a weather button.

@@ -41,6 +41,22 @@ export interface NormalizedRun {
   jobs: JobInfo[] | null;
 }
 
+/** How many parallel jobs a matrix build fans out into: jobs named `test (node 18)`, `test (node 20)` share a prefix. */
+export function matrixWidth(jobs: JobInfo[] | null | undefined): number {
+  if (!jobs) return 1;
+  const groups = new Map<string, number>();
+  for (const j of jobs) {
+    const m = /^(.*?)\s*\(.+\)$/.exec(j.name);
+    if (m) groups.set(m[1], (groups.get(m[1]) ?? 0) + 1);
+  }
+  return Math.min(4, Math.max(1, ...groups.values()));
+}
+
+/** A dependency-cache step that finished successfully (a cache hit lets a courier zip in on a scooter). */
+export function hasCacheHit(jobs: JobInfo[] | null | undefined): boolean {
+  return !!jobs?.some((j) => j.steps.some((s) => /cache/i.test(s.name) && s.conclusion === 'success'));
+}
+
 export interface StageRule {
   stage: StageName;
   pattern: RegExp;

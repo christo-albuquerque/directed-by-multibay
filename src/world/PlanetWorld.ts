@@ -124,7 +124,7 @@ export class PlanetWorld {
     let bestD = 0.035;
     const sources: { list: { id: number; pos: THREE.Vector3 }[]; poke: (id: number) => void }[] = [];
     for (const l of this.lines) sources.push({ list: l.grainPickables(), poke: (id) => l.folk.poke(id) });
-    for (const a of [this.farm.ambient, this.mine.ambient, this.city.ambient]) if (a) sources.push({ list: a.pickables(), poke: (id) => a.poke(id) });
+    for (const a of [this.farm.ambient, this.mine.ambient, this.city.ambient, this.scatter.ambient]) if (a) sources.push({ list: a.pickables(), poke: (id) => a.poke(id) });
     for (const src of sources) {
       for (const g of src.list) {
         this.v.copy(g.pos).project(camera);
@@ -170,6 +170,7 @@ export class PlanetWorld {
     this.city.draw(env, this.pools);
     this.skyways.update(dt, elapsed, env.camDist);
     this.weather.update(dt, elapsed);
+    if (env.camDist < 200) this.scatter.ambient.draw(env, this.pools);
     setGlow('wild', this.world.nightAt(this.world.controls.focus));
     // Slow machines drop the far-away forests first.
     this.scatter.group.visible = this.world.quality >= 2 || env.camDist < 300;

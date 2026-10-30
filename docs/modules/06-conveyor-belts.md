@@ -26,8 +26,9 @@ Belts carry crates and boxes **inside factories** and, as elevated feeders and t
 
 ## Extension points
 - New belt: build a `SurfacePath`, call `ribbonMesh` (it registers itself), add supports, hide both ends in hoods.
-- Matrix lanes: add parallel lanes using `route.offset(k)`; keep spacing > lane half-width.
+- **Matrix builds** (`sim/runs.ts` `matrixWidth`: jobs named `test (a)`, `test (b)` share a prefix, up to 4): `Line.drawExpress` draws siblings 1.15 units apart behind the real box, in sync with it.
+- Real parallel lanes: add parallel lanes using `route.offset(k)`; keep spacing > lane half-width.
 
 ## Known gaps
-- Matrix builds do not fan out; their jobs share one lane.
+- Matrix builds do not get extra belts; their sibling boxes travel in a convoy on the express lane (see below).
 - Feeder-over-road crossings (mine trunk over the port east road) rely on elevation; no bridge models yet.

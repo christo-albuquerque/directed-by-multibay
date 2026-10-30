@@ -43,4 +43,4 @@ A rounded planet, **Kepler-22b**, that holds every district, always present and 
 
 ## Known gaps
 - Power fields are mostly decorative (panels, pylons); no moving parts yet.
-- Poles are ice-coloured and sparse.
+- Poles are ice-coloured and sparse; mountain and lake placement is purely noise-based.

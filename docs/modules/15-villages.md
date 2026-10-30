@@ -16,6 +16,7 @@ Small settlements scattered over the whole planet so no land is empty.
 
 ## Invariants
 - Villages never overlap districts, roads, belts or plazas.
+- Three villagers per village (`scatter.ts` `Scatter.ambient`) stroll a loop round the plaza with chores, clickable.
 - Same layout every load (seeded).
 - Window glow follows the `wild` group night level.
 
@@ -23,4 +24,4 @@ Small settlements scattered over the whole planet so no land is empty.
 - Village grains (`Ambient` loops around the plaza) and village-specific stalls.
 
 ## Known gaps
-- No grains in villages yet; houses do not follow terrain slope (lifted 0.2).
+- Houses do not follow terrain slope (lifted 0.2).

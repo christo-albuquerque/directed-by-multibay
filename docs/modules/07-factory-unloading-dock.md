@@ -15,6 +15,7 @@ First station of every line: raw materials arrive from the farm and mine and bec
 - Supply arrives by elevated feeder (`feeders.ts`) into the depot's intake (`Line.supply()` gives entry, outside and ramp points). Truck drop-off bays: planned, not built (feeders replace trucks for supply).
 - Real runs: a `FactoryState` product starts `inside` the depot housing (`Express` mode `inside`, stage 0) and leaves when the sim moves it to lint.
 - Ambient bulk items spawn inside the housing too, at ~one every few seconds, so the belt never starts empty (`seedItems`).
+- **Pneumatic cache tube** (`props.ts` `tubeHatch`) at the depot: when a real run's jobs contain a successful step named like "cache" (`sim/runs.ts` `hasCacheHit`), a scooter courier zips to the hatch at double speed (`Folk.zip`).
 - Crew: loaders (rice, corn) beside the station with `load` style; haulers with scooters bring crates from piles (02).
 
 ## Invariants
@@ -28,3 +29,4 @@ First station of every line: raw materials arrive from the farm and mine and bec
 ## Known gaps
 - No visible truck unloading (feeders do the supply job).
 - Crate labels with real dependency names are not drawn yet.
+- Cache-hit detection is only "a successful step whose name contains cache".
