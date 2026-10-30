@@ -85,19 +85,19 @@ export function arena(zone: string): Prefab {
   const p = new Prefab();
   const W = 15;
   const L = 16;
-  p.box(W, 0.3, L, M(0x8e8a84), 0, 0.35, 0);
-  for (const x of [-W / 2, W / 2]) p.box(0.9, 3.6, L, M(0xc9c2b4), x, 0.35, 0);
-  for (const z of [-L / 2, L / 2]) for (const sx of [-1, 1]) p.box(W / 2 - 3.4, 3.6, 0.9, M(0xc9c2b4), sx * (W / 4 + 1.7), 0.35, z);
+  p.box(W, 0.03, L, M(0x8e8a84), 0, 0.005, 0);
+  for (const x of [-W / 2, W / 2]) p.box(0.9, 3.6, L, M(0xc9c2b4), x, 0, 0);
+  for (const z of [-L / 2, L / 2]) for (const sx of [-1, 1]) p.box(W / 2 - 3.4, 3.6, 0.9, M(0xc9c2b4), sx * (W / 4 + 1.7), 0, z);
   // Caution stripes along the wall tops.
   for (const x of [-W / 2, W / 2]) p.box(1.1, 0.25, L + 0.2, glowMat(zone, 0xffb02e, 0.12, 1.2), x, 3.95, 0);
   // Gantry across the arena: towers and a beam the crane heads hang from.
-  for (const x of [-6.4, 6.4]) p.box(1, 8.6, 1, M(0x64748b), x, 0.35, -2.4);
+  for (const x of [-6.4, 6.4]) p.box(1, 8.6, 1, M(0x64748b), x, 0, -2.4);
   p.box(14, 0.9, 1.2, M(0x64748b), 0, 8.4, -2.4);
   // Cannon mounts on both walls and a red target ring wall.
   for (const sx of [-1, 1]) {
-    p.box(2.2, 1.2, 2.2, M(0x3d4658), sx * 6, 0.35, 3).box(1.2, 0.2, 1.2, glowMat(zone, 0xff3b2f, 0.12, 2), sx * 6, 1.6, 3);
+    p.box(2.2, 1.2, 2.2, M(0x3d4658), sx * 6, 0, 3).box(1.2, 0.2, 1.2, glowMat(zone, 0xff3b2f, 0.12, 2), sx * 6, 1.6, 3);
   }
-  p.box(14, 3, 0.5, M(0x7a746c), 0, 0.35, 6.6);
+  p.box(14, 3, 0.5, M(0x7a746c), 0, 0, 6.6);
   return p;
 }
 
@@ -122,8 +122,8 @@ export function dispatch(zone: string): Prefab {
 /** The loading bay at the end of the belt: a small hood and an apron where trucks wait to collect boxes. */
 export function dock(zone: string): Prefab {
   const p = hood(7, 9.4, 3.8, 0x4a3a78);
-  p.box(14, 0.3, 16, M(0x4c505a), 0, 0.35, 11).box(14.2, 0.2, 0.4, glowMat(zone, 0xffd24a, 0.15, 2), 0, 0.65, 3);
-  p.box(0.6, 1.4, 0.6, M(0xf5c542), -6.4, 0.65, 18).box(0.6, 1.4, 0.6, M(0xf5c542), 6.4, 0.65, 18);
+  p.box(14, 0.03, 16, M(0x4c505a), 0, 0.005, 11).box(14.2, 0.2, 0.4, glowMat(zone, 0xffd24a, 0.15, 2), 0, 0.06, 3);
+  p.box(0.6, 1.4, 0.6, M(0xf5c542), -6.4, 0, 18).box(0.6, 1.4, 0.6, M(0xf5c542), 6.4, 0, 18);
   return p;
 }
 
@@ -139,8 +139,8 @@ export function walkwayPost(zone: string): Prefab {
 }
 
 export function hut(zone: string): Prefab {
-  const p = new Prefab().box(4.4, 3.4, 3.6, M(0xf1f1f1), 0, 0.35, 0).box(4.9, 0.4, 4.1, M(0xdc2626), 0, 3.75, 0);
-  p.box(1.4, 2.2, 0.15, M(0x3d4658), 0, 0.35, 1.85).box(1.8, 0.35, 0.1, glowMat(zone, 0xff3b3b, 0.2, 2.4), 0, 3.2, 1.86);
+  const p = new Prefab().box(4.4, 3.4, 3.6, M(0xf1f1f1), 0, 0, 0).box(4.9, 0.4, 4.1, M(0xdc2626), 0, 3.4, 0);
+  p.box(1.4, 2.2, 0.15, M(0x3d4658), 0, 0, 1.85).box(1.8, 0.35, 0.1, glowMat(zone, 0xff3b3b, 0.2, 2.4), 0, 3.2, 1.86);
   p.box(0.9, 0.3, 0.12, M(0xdc2626), -1.5, 2.2, 1.85).box(0.3, 0.9, 0.12, M(0xdc2626), -1.5, 1.9, 1.85);
   return p;
 }

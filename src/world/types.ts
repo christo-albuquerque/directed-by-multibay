@@ -20,4 +20,6 @@ export interface Pools {
   crates: InstancePool;
   boxes: InstancePool;
   crowd: CrowdRenderer;
+  /** Trolley carts that porters push between belts and rooms. */
+  trolleys: InstancePool;
 }

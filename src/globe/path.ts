@@ -145,22 +145,26 @@ export class SurfacePath {
     return out;
   }
 
-  /** A ribbon of the given width following the path (left/right vertex pairs). */
-  ribbon(halfWidth: number, lift = 0): { positions: Float32Array; uvs: Float32Array; indices: number[] } {
-    const positions = new Float32Array(this.count * 2 * 3);
-    const uvs = new Float32Array(this.count * 2 * 2);
+  /** A ribbon of the given width following the path (left/right vertex pairs), optionally only between two distances. */
+  ribbon(halfWidth: number, lift = 0, from = 0, to = this.length): { positions: Float32Array; uvs: Float32Array; indices: number[] } {
+    const i0 = Math.max(0, Math.ceil(from / this.step));
+    const i1 = Math.min(this.count - 1, Math.floor(to / this.step));
+    const n = Math.max(0, i1 - i0 + 1);
+    const positions = new Float32Array(n * 2 * 3);
+    const uvs = new Float32Array(n * 2 * 2);
     const indices: number[] = [];
     const side = new THREE.Vector3();
     const p = new THREE.Vector3();
-    for (let i = 0; i < this.count; i++) {
+    for (let j = 0; j < n; j++) {
+      const i = i0 + j;
       side.crossVectors(this.up[i], this.tan[i]).normalize();
       for (const k of [0, 1]) {
         p.copy(this.pos[i]).addScaledVector(side, k === 0 ? halfWidth : -halfWidth).addScaledVector(this.up[i], lift);
-        positions.set([p.x, p.y, p.z], (i * 2 + k) * 3);
-        uvs.set([k, i * this.step], (i * 2 + k) * 2);
+        positions.set([p.x, p.y, p.z], (j * 2 + k) * 3);
+        uvs.set([k, i * this.step], (j * 2 + k) * 2);
       }
-      if (i < this.count - 1) {
-        const a = i * 2;
+      if (j < n - 1) {
+        const a = j * 2;
         indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
       }
     }

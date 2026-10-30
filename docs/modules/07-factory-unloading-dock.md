@@ -12,7 +12,7 @@ First station of every line: raw materials arrive from the farm and mine and bec
 
 ## Current implementation
 - `line/prefabs.ts` `depot`, placed first on the route (`STATIONS[0]`, anchor (−38, −11), hidden housing, service 2.4 s, label "DEPENDENCIES").
-- Supply arrives by elevated feeder (`feeders.ts`) into the depot's intake (`Line.supply()` gives entry, outside and ramp points). Truck drop-off bays: planned, not built (feeders replace trucks for supply).
+- **Supply by road** (`world/supply.ts` `Supply`): every line has a truck (crop truck from the farm shed for even lines, ore truck from the mine shed for odd lines) that loads unseen inside its shed, drives a registered road to the line's depot bay at local (−49.5, −11), parks, and two porters (rice, corn) carry crates one by one from its bed across to the depot door on trolleys, vanishing inside. The truck turns round and returns in the opposite lane.
 - Real runs: a `FactoryState` product starts `inside` the depot housing (`Express` mode `inside`, stage 0) and leaves when the sim moves it to lint.
 - Ambient bulk items spawn inside the housing too, at ~one every few seconds, so the belt never starts empty (`seedItems`).
 - **Pneumatic cache tube** (`props.ts` `tubeHatch`) at the depot: when a real run's jobs contain a successful step named like "cache" (`sim/runs.ts` `hasCacheHit`), a scooter courier zips to the hatch at double speed (`Folk.zip`).
@@ -20,13 +20,14 @@ First station of every line: raw materials arrive from the farm and mine and bec
 
 ## Invariants
 - Station index 0, hidden housing; nothing appears outside it.
-- Feeder arrives at the depot, never crossing machines on the way.
+- Supply arrives by truck at the bay outside the depot door; trucks and porters never cross machines.
+- Porters push crates on trolleys; no belt reaches the depot from outside.
 - Real runs start here and carry the run key.
 
 ## Extension points
-- Truck bays with unloading forklifts; a pneumatic tube hatch for cache hits (needs a `cache` flag on the run).
+- Forklifts at the bay; more trucks per line when activity is high.
 
 ## Known gaps
-- No visible truck unloading (feeders do the supply job).
+- Deliveries are visual: ambient crates still spawn inside the depot on their own timer, not strictly when a porter delivers.
 - Crate labels with real dependency names are not drawn yet.
 - Cache-hit detection is only "a successful step whose name contains cache".

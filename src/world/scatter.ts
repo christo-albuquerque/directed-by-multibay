@@ -108,7 +108,7 @@ function inDistrict(dir: THREE.Vector3, margin: number): boolean {
 /** Small built-up spots outside the districts (break plazas) that the wilderness must keep clear. */
 let avoid: { dir: THREE.Vector3; r: number }[] = [];
 
-function roadGeometry(path: SurfacePath, half: number): THREE.BufferGeometry {
+export function roadGeometry(path: SurfacePath, half: number): THREE.BufferGeometry {
   const n = Math.ceil(path.length / 1.2);
   const pos: number[] = [];
   const idx: number[] = [];

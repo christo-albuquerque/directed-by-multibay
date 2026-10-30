@@ -7,7 +7,7 @@ import { ribbonMesh } from '../belts';
 import { Ambient } from '../ambient';
 import type { LookName } from '../crowd';
 import { Dyn } from '../dyn';
-import { Feeder, HUB_HEIGHT, makeOutpost } from '../feeders';
+
 import { M, Prefab, StaticBatch, glowMat, setGlow } from '../kit';
 import { hood, lamp, tank } from '../line/prefabs';
 import { InstancePool, surfaceMatrix } from '../pools';
@@ -32,8 +32,6 @@ function pt(chart: Chart, x: number, z: number, h: number): THREE.Vector3 {
  */
 export class Mine {
   readonly group = new THREE.Group();
-  readonly out: THREE.Vector3;
-  readonly feeders: Feeder[] = [];
   private zone: Zone;
   private chart: Chart;
   private ramp: SurfacePath;
@@ -83,12 +81,7 @@ export class Mine {
     this.stick = new Dyn(new Prefab().box(0.9, 0.9, 5.4, M(0xd99700), 0, 0, 0), this.exBase, this.group);
     this.bucket = new Dyn(new Prefab().box(2.4, 1.5, 2, M(0x6b7280), 0, 0, 0).box(2.5, 0.3, 0.4, M(0xcbd5e1), 0, -0.2, 1.1), this.exBase, this.group);
 
-    // Pit conveyor: ore from the pit floor up the wall to the crusher.
-    const conv = SurfacePath.through3D(
-      [pt(c, ex - 6, ez - 2, -pitDepthAt(ex, ez) + 1), pt(c, -14, 8, -9), pt(c, -22, -6, -3), pt(c, -22, -20, 1.5), pt(c, -18, -34, 4.4)],
-      1,
-    );
-    this.feeders.push(new Feeder(conv, 0x7f8794, 3.2, 3.2, batch, false));
+    // Ore is hauled by dump trucks and rail carts only: no belts outside factories.
 
     // Rail line: tunnel portal in the north-east rim, rails along the rim to the crusher.
     this.rail = SurfacePath.through(c, [[40, -30], [32, -35], [18, -38], [0, -38], [-10, -37]], 0.3, false, 0.8);
@@ -110,8 +103,6 @@ export class Mine {
     for (let i = 0; i < 5; i++) crusher.box(1.6, 0.5, 0.15, glowMat(id, 0xff7a2a, 0.15, 2.6), -5.4 + i * 2.7, 5, 5.55);
     crusher.box(8, 0.6, 5, M(0x23262d), 0, 9.5, -3).box(8.4, 2, 0.5, M(0x8a8f99), 0, 9.5, -5.6);
     batch.placeOn(crusher, c, -18, -38, 0.3, 0);
-    batch.placeOn(makeOutpost(id), c, 6, -36, 0.3, 0);
-    this.out = c.point(6, -36, HUB_HEIGHT);
 
     // Decor: floodlights round the rim, tanks, pylons, a drill rig.
     for (let a = 0; a < Math.PI * 2; a += 0.55) batch.placeOn(lamp(id), c, Math.cos(a) * 34, Math.sin(a) * 34, 0.3, 0);
@@ -129,7 +120,6 @@ export class Mine {
   update(env: Env, night: number): void {
     setGlow(this.zone.id, night);
     this.t += env.dt;
-    for (const f of this.feeders) f.update(env.dt, env.activity);
     // Excavator digs in a steady loop.
     const T = 7;
     const u = (this.t % T) / T;
@@ -150,7 +140,6 @@ export class Mine {
   }
 
   draw(env: Env, pools: Pools): void {
-    for (const f of this.feeders) f.draw(pools, 0x8a929e);
     this.trucks.begin();
     this.carts.begin();
     this.loads.begin();

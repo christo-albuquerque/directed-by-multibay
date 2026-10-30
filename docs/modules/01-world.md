@@ -36,6 +36,7 @@ A rounded planet, **Kepler-22b**, that holds every district, always present and 
 - Nothing is added to or removed from the world at runtime.
 - `Chart` convention: x east, z south, local +x of a station frame = left of travel.
 - Day/night always advances (except the debug `frozen` flag).
+- **One ground height per district**: pads have their outer rim at 0.30 and their deck at 0.35; everything that stands or walks on a pad (grains, trucks, trolleys, prefab floors) is placed at `PAD_TOP = 0.35` and prefabs never add their own floor offset. Belts sit at 0.9. Never offset a prefab's base from the pad it is placed on.
 
 ## Extension points
 - New district: add to `ZONES`, give it a `Chart`, a pad, a terrain colour, and register its belts/roads (see 06).

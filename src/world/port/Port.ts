@@ -118,8 +118,8 @@ export class Port {
       tower.box(1.3, 20, 1.3, M(0xdc5a2b), 0, 0, 0).box(1.3, 20, 1.3, M(0xdc5a2b), 2.4, 0, 0).box(3.7, 0.4, 0.4, M(0xdc5a2b), 1.2, 6, 0).box(3.7, 0.4, 0.4, M(0xdc5a2b), 1.2, 12, 0).box(3.7, 0.4, 0.4, M(0xdc5a2b), 1.2, 18, 0);
       tower.box(2.6, 0.5, 2, glowMat(id, 0xff3b2f, 0.2, 3), 1.2, 20, 0);
       batch.placeOn(tower, c, pd.x - 7.5, pd.z - 2, 0.5, 0);
-      batch.placeOn(tank(0xd9dce2, 1.6, 4), c, pd.x + 9.5, pd.z - 6, 0.5);
-      batch.placeOn(tank(0xd9dce2, 1.6, 4), c, pd.x + 9.5, pd.z + 4, 0.5);
+      batch.placeOn(tank(0xd9dce2, 1.6, 4), c, pd.x + 9.5, pd.z - 6, 0.35);
+      batch.placeOn(tank(0xd9dce2, 1.6, 4), c, pd.x + 9.5, pd.z + 4, 0.35);
       // Drone helipad beside each repo pad.
       if (pd.line >= 0) {
         const hx = pd.x + (pd.x < 0 ? -13 : 13);
@@ -148,11 +148,11 @@ export class Port {
     for (let z = -40; z <= 40; z += 10) for (const x of [-30, -8, 8, 30]) batch.placeOn(lamp(id), c, x, z, PAD_Y);
 
     // Roads: the dispatch avenue between the two columns of lines, the east road, and the port loop.
-    const lat = (la: number, lo: number, h = 0.5): THREE.Vector3 => lonLatDir(lo, la).multiplyScalar(R + h);
+    const lat = (la: number, lo: number, h = 0.37): THREE.Vector3 => lonLatDir(lo, la).multiplyScalar(R + h);
     const avenue = SurfacePath.through3D([lat(46, 0), lat(38, 0), lat(30, 0), lat(22, 0), lat(14, 0), lat(8, 0), lat(3.8, 0)], 1);
     const east = SurfacePath.through3D([lat(3.8, 0), lat(3.8, 14), lat(3.8, 30), lat(5, 46), lat(10, 58), lat(18, 66), lat(22, 69)], 1);
     this.group.add(ribbonMesh(avenue, 2.8, asphalt), ribbonMesh(east, 2.8, asphalt));
-    const loop = SurfacePath.through(c, [[-34, 20], [0, 22], [34, 20], [34, 10], [0, 8], [-34, 10], [-34, -8], [0, -8], [34, -8], [34, -22], [0, -22], [-34, -22]], 0.55, false, 1.5);
+    const loop = SurfacePath.through(c, [[-34, 20], [0, 22], [34, 20], [34, 10], [0, 8], [-34, 10], [-34, -8], [0, -8], [34, -8], [34, -22], [0, -22], [-34, -22]], 0.37, false, 1.5);
     this.group.add(ribbonMesh(loop, 2.8, asphalt));
 
     // One road per line from its dock to its pad, and two trucks to run it.
@@ -160,10 +160,10 @@ export class Port {
       const dock = line.dockPose();
       const zoneLat = line.zone.lat;
       const pad = PADS[i];
-      const gate = c.point(-36, pad.z + (i % 2 === 0 ? 12 : 12), 0.5);
-      const lane = c.point(pad.x, pad.z + 14, 0.5);
-      const apron = c.point(pad.x + (pad.x < 0 ? -2 : 2), pad.z + 9, 0.5);
-      const pts = [dock.pos.clone().setLength(R + 0.5), dock.pos.clone().addScaledVector(dock.forward, 14).setLength(R + 0.5), lat(zoneLat, 0), lat(14 + (zoneLat > 20 ? 0 : 0), 0), lat(3.8, 2), lat(4.2, 30), lat(8, 52), gate, lane, apron];
+      const gate = c.point(-36, pad.z + (i % 2 === 0 ? 12 : 12), 0.37);
+      const lane = c.point(pad.x, pad.z + 14, 0.37);
+      const apron = c.point(pad.x + (pad.x < 0 ? -2 : 2), pad.z + 9, 0.37);
+      const pts = [dock.pos.clone().setLength(R + 0.37), dock.pos.clone().addScaledVector(dock.forward, 14).setLength(R + 0.37), lat(zoneLat, 0), lat(14 + (zoneLat > 20 ? 0 : 0), 0), lat(3.8, 2), lat(4.2, 30), lat(8, 52), gate, lane, apron];
       // Drop duplicate/near points that would kink the curve.
       const clean = pts.filter((p, k) => k === 0 || p.distanceTo(pts[k - 1]) > 4);
       const road = SurfacePath.through3D(clean, 1.2);

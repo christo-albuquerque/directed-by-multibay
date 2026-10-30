@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_LINES, ZONES } from './globe/zones';
 import { LOOKS } from './world/crowd';
-import { STATIONS } from './world/line/layout';
+import { APRON, STATIONS, STATION_GAP } from './world/line/layout';
 
 /** Every module baseline file (docs/modules/NN-name.md plus the README index), as raw text. */
 const docs = import.meta.glob('../docs/modules/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
@@ -46,5 +46,11 @@ describe('invariants named in the module files still hold in code', () => {
     expect(LOOKS.basmati.outfit).toBe('goggles');
     expect(LOOKS.hazmat.outfit).toBe('hazmat');
     expect(LOOKS.medic.outfit).toBe('cross');
+  });
+
+  it('conveyors (06): belts stop at every room, hooded rooms match the hidden stations', () => {
+    expect(STATION_GAP).toHaveLength(STATIONS.length);
+    expect(STATION_GAP.map((g) => g.hood)).toEqual(STATIONS.map((s) => s.hidden));
+    expect(APRON).toBeGreaterThan(0);
   });
 });

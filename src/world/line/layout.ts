@@ -42,3 +42,16 @@ export const STAGE_COLOR: Record<StageName, number> = {
   test: 0xd9503a,
   dispatch: 0x8a5ad0,
 };
+
+/**
+ * The belt stops at every room. h is half the room's length along the belt; hooded rooms hide anything inside. Porters push
+ * crates across the gap on trolleys, and the belt restarts APRON units beyond each door.
+ */
+export const STATION_GAP: { h: number; hood: boolean }[] = [
+  { h: 5, hood: true },
+  { h: 4.5, hood: false },
+  { h: 5, hood: true },
+  { h: 8, hood: false },
+  { h: 5, hood: true },
+];
+export const APRON = 1.6;

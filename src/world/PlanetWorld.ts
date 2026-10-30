@@ -6,7 +6,7 @@ import type { Product } from '../sim/factory';
 import { motion } from '../ui/motion';
 import { CrowdRenderer } from './crowd';
 import { Farm } from './farm/Farm';
-import { buildFeeders, type Feeder } from './feeders';
+import { Supply, trolleyPrefab } from './supply';
 import { Mine } from './mine/Mine';
 import { Port } from './port/Port';
 import { City } from './city/City';
@@ -39,6 +39,7 @@ export class PlanetWorld {
   private pools: Pools;
   private crates = new InstancePool(cratePrefab(), 1600, true);
   private boxes = new InstancePool(boxPrefab(), 1600, true);
+  private trolleys = new InstancePool(trolleyPrefab(), 400, false, false);
   private crowd = new CrowdRenderer(2600);
   readonly farm: Farm;
   readonly mine: Mine;
@@ -50,7 +51,7 @@ export class PlanetWorld {
   readonly weather: Weather;
   private portZone = ZONES.find((z) => z.kind === 'port')!;
   private cityZone = ZONES.find((z) => z.kind === 'city')!;
-  private feeders: Feeder[] = [];
+  private supply!: Supply;
   private farmZone = ZONES.find((z) => z.kind === 'farm')!;
   private mineZone = ZONES.find((z) => z.kind === 'mine')!;
   private warn = new THREE.PointLight(0xff3322, 0, 70, 1.4);
@@ -59,21 +60,20 @@ export class PlanetWorld {
   private v = new THREE.Vector3();
 
   constructor(private world: GlobeWorld) {
-    this.pools = { crates: this.crates, boxes: this.boxes, crowd: this.crowd };
+    this.pools = { crates: this.crates, boxes: this.boxes, crowd: this.crowd, trolleys: this.trolleys };
     const batch = new StaticBatch();
     buildPads(batch);
     for (const z of ZONES) if (z.kind === 'line') this.lines.push(new Line(z, batch));
     this.farm = new Farm(batch);
     this.mine = new Mine(batch);
-    this.feeders = [...buildFeeders(batch, this.lines, this.farm.out, this.mine.out), ...this.mine.feeders];
+    this.supply = new Supply(batch, this.lines);
     this.port = new Port(batch, this.lines);
     this.city = new City(batch);
     this.weather = new Weather(world);
     this.scatter = new Scatter(batch, this.lines.map((l) => ({ dir: l.plazaDir(), r: 8 })));
     world.scene.add(this.scatter.group);
     setGlow('sky', 0.6);
-    world.scene.add(batch.build(), this.crates.mesh, this.boxes.mesh, this.crowd.group, this.fx.points, this.warn, this.marker, this.farm.group, this.mine.group, this.port.group, this.city.group, ...this.farm.meshes, ...this.mine.meshes, ...this.port.meshes, ...this.skyways.meshes);
-    for (const f of this.feeders) world.scene.add(f.mesh);
+    world.scene.add(batch.build(), this.crates.mesh, this.boxes.mesh, this.trolleys.mesh, this.crowd.group, this.fx.points, this.warn, this.marker, this.farm.group, this.mine.group, this.port.group, this.city.group, ...this.farm.meshes, ...this.mine.meshes, ...this.port.meshes, ...this.skyways.meshes, ...this.supply.meshes);
     for (const l of this.lines) world.scene.add(l.group);
 
     // Selection marker: a pulsing ring and a tall beam over the chosen run.
@@ -145,6 +145,7 @@ export class PlanetWorld {
     const env: Env = { dt, elapsed, activity, fx: this.fx, focus: this.world.controls.focus, camDist: this.world.controls.view.dist };
     this.crates.begin();
     this.boxes.begin();
+    this.trolleys.begin();
     this.crowd.begin();
     let incident: THREE.Vector3 | null = null;
     for (const l of this.lines) {
@@ -157,13 +158,13 @@ export class PlanetWorld {
       l.draw(env, this.pools);
       if (!incident && l.incident) incident = l.incident;
     }
-    // Supply chain: farm, mine and the belts that carry their crates to every depot.
+    // Supply chain: farm and mine trucks carry crates to every depot.
     this.farm.update(env, this.world.nightAt(zoneChart(this.farmZone).center));
     this.farm.draw(env, this.pools);
     this.mine.update(env, this.world.nightAt(zoneChart(this.mineZone).center));
-    for (const f of this.feeders) if (!this.mine.feeders.includes(f)) f.update(dt, activity);
+    this.supply.update(env);
     this.mine.draw(env, this.pools);
-    for (const f of this.feeders) if (!this.mine.feeders.includes(f)) f.draw(this.pools);
+    this.supply.draw(env, this.pools);
     this.port.update(env, this.world.nightAt(zoneChart(this.portZone).center));
     this.port.draw(env, this.pools);
     this.city.update(env, this.world.nightAt(zoneChart(this.cityZone).center));
@@ -176,6 +177,7 @@ export class PlanetWorld {
     this.scatter.group.visible = this.world.quality >= 2 || env.camDist < 300;
     this.crates.end();
     this.boxes.end();
+    this.trolleys.end();
     this.crowd.end();
     this.fx.update(dt, this.world.camera, this.world.renderer);
 

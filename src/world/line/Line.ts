@@ -18,7 +18,7 @@ import { M, Prefab, StaticBatch, glowMat, setGlow } from '../kit';
 import { Dyn } from '../dyn';
 import { surfaceMatrix } from '../pools';
 import type { Env, Pools } from '../types';
-import { BELT_HEIGHT, BELT_SPEED, ITEM_GAP, ITEM_LIFT, LANE_OFFSET, ROUTE, STATIONS } from './layout';
+import { APRON, BELT_HEIGHT, BELT_SPEED, ITEM_GAP, ITEM_LIFT, LANE_OFFSET, ROUTE, STATIONS, STATION_GAP } from './layout';
 import * as P from './prefabs';
 
 const PAD_TOP = 0.35;
@@ -83,6 +83,11 @@ const tmpM = new THREE.Matrix4();
 const tmpV = new THREE.Vector3();
 const tmpV2 = new THREE.Vector3();
 const tmpP = new THREE.Vector3();
+const tmpP2 = new THREE.Vector3();
+const tmpV3 = new THREE.Vector3();
+const tmpM2 = new THREE.Matrix4();
+/** Who pushes the trolley at each room. */
+const PORTER_LOOK: LookName[] = ['rice', 'basmati', 'corn', 'wheat', 'rice'];
 
 const TINT = { crate: 0xffffff, box: 0xffffff, tested: 0xc8f5c8, failed: 0xff7a6e, cancelled: 0x9aa0a8 };
 const DWELL = [2.4, 3.2, 4.2, 7.5, 3.2];
@@ -146,9 +151,8 @@ export class Line {
     this.bulk = this.route.offset(LANE_OFFSET);
     this.express = this.route.offset(-LANE_OFFSET);
 
-    this.group.add(ribbonMesh(this.bulk, 0.95, this.belt.mat), ribbonMesh(this.express, 0.95, this.belt.mat));
-    beltSupports(batch, this.route, 4.2, LANE_OFFSET + 1.15);
     this.buildStations(batch);
+    this.buildBelts(batch);
     this.buildDecor(batch);
     this.buildScreens();
     this.buildSign();
@@ -200,6 +204,84 @@ export class Line {
     // Scrap chutes on the express side of the two open stations, where rejected runs leave the line.
     const chute = new Prefab().box(2.4, 1.7, 2.8, M(0x23262d), 0, 0, 0).box(2.6, 0.3, 3, M(0x2f333d), 0, 1.7, 0).box(0.1, 1.2, 2, glowMat(zone, 0xff3b2f, 0.15, 2), 1.25, 0.2, 0);
     for (const k of [1, 3]) batch.place(chute, new THREE.Matrix4().multiplyMatrices(this.stations[k].matrix, new THREE.Matrix4().makeTranslation(-5.6, 0.0, 0)));
+  }
+
+  /** Belt pieces between the rooms: every belt ends at a room's door and restarts beyond its exit door. */
+  private buildBelts(batch: StaticBatch): void {
+    const lanes: [SurfacePath, number[]][] = [[this.bulk, this.stations.map((s) => s.sBulk)], [this.express, this.stations.map((s) => s.sExpress)]];
+    for (const [lane, centres] of lanes) {
+      let from = 0;
+      centres.forEach((c, k) => {
+        const inner = STATION_GAP[k].h + APRON;
+        if (c - inner > from + 1) this.group.add(ribbonMesh(lane, 0.95, this.belt.mat, 0, from, c - inner));
+        from = Math.max(from, c + inner);
+      });
+      this.group.add(ribbonMesh(lane, 0.95, this.belt.mat, 0, from, lane.length));
+    }
+    const gaps: [number, number][] = this.stations.map((s, k) => {
+      const c = s.fraction * this.route.length;
+      const inner = STATION_GAP[k].h + APRON;
+      return [c - inner, c + inner];
+    });
+    beltSupports(batch, this.route, 4.2, LANE_OFFSET + 1.15, gaps);
+  }
+
+  /**
+   * Items cross a room on a trolley: a porter waits at the door, the crate hops on at the belt's end, they go in (hidden
+   * if the room is hooded), and come out of the exit door where the crate is put back on the belt. Returns `'hide'`
+   * when the item is inside a hooded room, or how far to lower the item onto the trolley deck.
+   */
+  private handoff(lane: 'bulk' | 'express', s: number, moving: boolean, pools: Pools, env: Env, look: LookName): number | 'hide' {
+    const path = lane === 'bulk' ? this.bulk : this.express;
+    for (let k = 0; k < this.stations.length; k++) {
+      const st = this.stations[k];
+      const c = lane === 'bulk' ? st.sBulk : st.sExpress;
+      const { h, hood } = STATION_GAP[k];
+      const inner = h + APRON;
+      const d = s - c;
+      if (d < -(inner + 3.2) || d > inner + APRON + 0.3) continue;
+      if (d < -inner) {
+        // The porter steps out of the door to meet the crate.
+        if (moving) {
+          const f = THREE.MathUtils.clamp((d + inner + 3.2) / 2.2, 0, 1);
+          this.drawCarrier(path, THREE.MathUtils.lerp(c - h, c - inner + 0.7, f), 1, true, pools, env, look, true);
+        }
+        return 0;
+      }
+      if (d <= inner) {
+        if (hood && Math.abs(d) < h) return 'hide';
+        this.drawCarrier(path, s, 1, false, pools, env, look, moving);
+        return 0.2;
+      }
+      // Past the exit door: the porter turns round and walks back in.
+      if (moving) {
+        const back = THREE.MathUtils.clamp((d - inner) / APRON, 0, 1);
+        const at = c + inner - back * APRON;
+        if (at > c + h + 0.05) this.drawCarrier(path, at - 1.05, -1, false, pools, env, look, true, true);
+      }
+      return 0;
+    }
+    return 0;
+  }
+
+  /** A trolley (and its porter, when `porter`) at distance s along a lane. `face` is the way the porter is walking. */
+  private drawCarrier(path: SurfacePath, s: number, face: 1 | -1, waiting: boolean, pools: Pools, env: Env, look: LookName, porter: boolean, returning = false): void {
+    path.at(Math.min(Math.max(s, 0), path.length), tmpS);
+    const drop = BELT_HEIGHT - PAD_TOP;
+    tmpV2.copy(tmpS.up);
+    tmpP2.copy(tmpS.pos).addScaledVector(tmpV2, -drop);
+    tmpV3.copy(tmpS.tangent).multiplyScalar(waiting || returning ? -face : face);
+    surfaceMatrix(tmpP2, tmpV3, tmpV2, tmpM2);
+    pools.trolleys.push(tmpM2);
+    if (!porter) return;
+    // The porter stands behind the trolley (or beyond it, when waiting for the crate).
+    const behind = waiting || returning ? 1.1 : -1.1;
+    const p = tmpP2.clone().addScaledVector(tmpS.tangent, behind);
+    void face;
+    const g: GrainPose = { pos: p, forward: tmpV3, up: tmpV2, look: LOOKS[look], armL: -1.2, armR: -1.2, legL: 0, legR: 0, bob: 0, lean: 0.1, roll: 0 };
+    Object.assign(g, walkLimbs(env.elapsed * 9 + path.length, 2.2));
+    g.armL = g.armR = -1.2;
+    pools.crowd.draw(g);
   }
 
   private buildDecor(batch: StaticBatch): void {
@@ -714,8 +796,12 @@ export class Line {
       if (it.state === 'proc' && STATIONS[it.stage]?.hidden) continue;
       const hiddenInside = it.state === 'proc' && STATIONS[it.stage]?.hidden;
       if (hiddenInside) continue;
+      // Across a room's gap the crate rides a trolley (hidden inside hooded rooms).
+      const ride = this.handoff('bulk', it.s, it.state === 'move', pools, env, PORTER_LOOK[Math.min(4, it.stage)]);
+      if (ride === 'hide') continue;
       this.lanePos(this.bulk, it.s, tmpP, dir);
       this.path(this.bulk, it.s);
+      if (ride) tmpP.addScaledVector(tmpS.up, -ride);
       const st = it.state === 'proc' && it.stage === 3 ? this.stations[3] : null;
       let scaleY = 1;
       if (st) {
@@ -729,7 +815,7 @@ export class Line {
     }
     // Real runs on the express lane.
     this.stamp.mesh.visible = false;
-    for (const e of this.ex.values()) this.drawExpress(e, pools);
+    for (const e of this.ex.values()) this.drawExpress(e, pools, env);
     this.poseMachinery(env);
     if (near) this.drawCrowd(env, pools);
   }
@@ -749,12 +835,15 @@ export class Line {
     return e.mode === 'inside' && !!STATIONS[e.stage]?.hidden && e.stage !== 1 && e.stage !== 3;
   }
 
-  private drawExpress(e: Express, pools: Pools): void {
+  private drawExpress(e: Express, pools: Pools, env: Env): void {
     if (e.mode === 'loaded') return;
     if (this.expressInside(e)) return;
     const p = e.product;
+    const ride = e.mode === 'reject' ? 0 : this.handoff('express', e.s, e.mode === 'travel', pools, env, PORTER_LOOK[Math.min(4, e.stage)]);
+    if (ride === 'hide') return;
     this.lanePos(this.express, e.s, tmpP, tmpV);
     this.path(this.express, e.s);
+    if (ride) tmpP.addScaledVector(tmpS.up, -ride);
     let scaleY = 1;
     if (e.mode === 'inside' && e.stage === 3) {
       // The real run is put through its paces in the arena, looping while the real tests run.

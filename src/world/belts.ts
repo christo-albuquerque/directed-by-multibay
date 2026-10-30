@@ -35,9 +35,9 @@ export class BeltSurface {
 }
 
 /** A belt (or road) following a path as a flat ribbon on the planet's surface. */
-export function ribbonMesh(path: SurfacePath, halfWidth: number, mat: THREE.Material, lift = 0): THREE.Mesh {
+export function ribbonMesh(path: SurfacePath, halfWidth: number, mat: THREE.Material, lift = 0, from = 0, to = path.length): THREE.Mesh {
   if (halfWidth >= 0.5 && lift < 0.5) registerCorridor(path, halfWidth);
-  const r = path.ribbon(halfWidth, lift);
+  const r = path.ribbon(halfWidth, lift, from, to);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(r.positions, 3));
   g.setAttribute('uv', new THREE.BufferAttribute(r.uvs, 2));
@@ -52,11 +52,12 @@ export function ribbonMesh(path: SurfacePath, halfWidth: number, mat: THREE.Mate
 const LEG = new Prefab().box(0.35, 0.6, 1.5, M(0x4a505c), 0, 0, 0).box(2.4, 0.15, 0.35, M(0x4a505c), 0, 0.5, 0);
 
 /** Support legs and edge rails along a belt, merged into the static scenery. */
-export function beltSupports(batch: StaticBatch, path: SurfacePath, spacing = 4, railHalf = 2.0): void {
+export function beltSupports(batch: StaticBatch, path: SurfacePath, spacing = 4, railHalf = 2.0, gaps: [number, number][] = []): void {
   const p = { pos: new THREE.Vector3(), tangent: new THREE.Vector3(), up: new THREE.Vector3() };
   const m = new THREE.Matrix4();
   const rail = new Prefab().box(0.16, 0.34, spacing + 0.1, M(0x9aa4b2), railHalf, 0, 0).box(0.16, 0.34, spacing + 0.1, M(0x9aa4b2), -railHalf, 0, 0);
   for (let s = spacing / 2; s < path.length; s += spacing) {
+    if (gaps.some(([a, b]) => s > a - spacing / 2 && s < b + spacing / 2)) continue;
     path.at(s, p);
     surfaceMatrix(p.pos, p.tangent, p.up, m);
     // `at` sits at belt height; legs hang below it.

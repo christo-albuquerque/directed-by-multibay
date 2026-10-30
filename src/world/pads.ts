@@ -16,8 +16,8 @@ export function buildPads(batch: StaticBatch): void {
   for (const z of ZONES) {
     if (z.kind === 'farm' || z.kind === 'mine') continue;
     const chart = zoneChart(z);
-    batch.addGeometry(M(PAD_COLOR[z.kind], { side: THREE.DoubleSide }), bentSlab(chart, 0, 0, z.w, z.d, 0.35, 5, 6));
+    batch.addGeometry(M(PAD_COLOR[z.kind], { side: THREE.DoubleSide }), bentSlab(chart, 0, 0, z.w, z.d, 0.3, 5, 6));
     // A slightly raised inner deck so the pad reads as a built platform, not just terrain.
-    batch.addGeometry(M(((PAD_COLOR[z.kind] >> 1) & 0x7f7f7f) + 0x181818, { side: THREE.DoubleSide }), bentSlab(chart, 0, 0, z.w - 4, z.d - 4, 0.5, 0.2, 6));
+    batch.addGeometry(M(((PAD_COLOR[z.kind] >> 1) & 0x7f7f7f) + 0x181818, { side: THREE.DoubleSide }), bentSlab(chart, 0, 0, z.w - 4, z.d - 4, 0.35, 0.2, 6));
   }
 }

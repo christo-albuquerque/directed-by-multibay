@@ -14,12 +14,12 @@ Where raw material (crop crates) comes from. A visible loop of seed, grow, harve
 - 4 fields with per-row state machines (sprout, grow, ripe, harvested, replant); crop tint runs green to gold on instanced plants.
 - Planters and combines (`vehicles.ts`) run the rows, with dust; domes, silos, windmills as scenery.
 - Farmhands: `Ambient` grains on the field track loop with chores (inspect, clipboard, coffee, wave, repair), some carrying boxes, some on scooters, all clickable.
-- Output: the crop trunk belt starts at `Farm.out` and runs to the west hub, then elevated feeders go to each line's depot (06, 07).
+- Output: crop trucks (`supply.ts`) load unseen inside a shed at the farm's south end (chart (0, 52)) and drive to the depots of the west column lines (07). No belts leave the farm.
 
 ## Invariants
 - Four fields, endless loop, crop colour tied to growth state.
-- Harvest feeds the trunk belt; crates enter belts only inside hoods/silos.
-- Farm roads and trunk are registered corridors (scenery avoids them).
+- Harvest is moved by combines and trucks; there are no belts.
+- Farm roads and the supply roads are registered corridors (scenery avoids them).
 
 ## Extension points
 - More fields: add a row state machine; keep the trunk start in a hood. Livestock/orchards would be new sub-areas inside the zone.

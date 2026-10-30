@@ -18,10 +18,10 @@ Everything that carries things or people: trucks, drones, forklifts, flying cars
 - **Farm vehicles:** planters and combines work rows (04). **Mine:** dump trucks, excavator, rail carts (05).
 - **Sky traffic** (`city/Skyways.ts`): hover cars on neon lanes at heights 24 to 48, package drones on loops at 22 to 31, satellites on high orbits. Lanes are above every building.
 - **Forklifts** (line/props.ts, Line.updateForklift): one per line shuttles a crate between two pallet stacks at the east loading bay (forks rise to lift, drop to set down).
-- **Feeders:** crates ride elevated belts from the farm and mine hubs into each depot (06).
+- **Supply trucks** (`world/supply.ts`): one crop or ore truck per line, hidden while loading in its shed, then driving a registered road to the depot bay, unloaded by two porters with trolleys, then back in the opposite lane.
 
 ## Invariants
-- Two delivery trucks per line; express truck waits for a real run; release only counts when the rocket lifts off.
+- One supply truck per line plus two delivery trucks per line; express truck waits for a real run; release only counts when the rocket lifts off.
 - One forklift per line at the loading bay, between its two stacks.
 - Eight pads, two rockets and two drones per pad.
 - Closed loops; no spawn/despawn in view.

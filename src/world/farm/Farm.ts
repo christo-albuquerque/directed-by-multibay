@@ -6,7 +6,6 @@ import { ribbonMesh } from '../belts';
 import { Ambient } from '../ambient';
 import type { LookName } from '../crowd';
 import { Dyn } from '../dyn';
-import { HUB_HEIGHT, makeOutpost } from '../feeders';
 import { M, Prefab, StaticBatch, bentSlab, glowMat, setGlow } from '../kit';
 import { InstancePool } from '../pools';
 import { tank, lamp } from '../line/prefabs';
@@ -72,7 +71,6 @@ const v3 = new THREE.Vector3();
 export class Farm {
   readonly group = new THREE.Group();
   /** Where the crate trunk belt starts (raised, at hub height). */
-  readonly out: THREE.Vector3;
   private chart: Chart;
   private fields: Field[] = [];
   private plants = new InstancePool(plantPrefab(), ROWS * PLANTS * 4 + 8, true, false);
@@ -123,10 +121,8 @@ export class Farm {
       batch.placeOn(dome, c, x, -46, GROUND);
     });
 
-    // Silos and the crate out-station at the south end.
+    // Silos at the south end; trucks load at the shed beside them (see supply.ts).
     for (let i = 0; i < 4; i++) batch.placeOn(tank(0xcfd3da, 3, 7), c, -15 + i * 10, 42, GROUND);
-    batch.placeOn(makeOutpost(id), c, 0, 50, 0.3);
-    this.out = c.point(0, 50, HUB_HEIGHT);
 
     // Wind turbines with turning blades, farmhouses and lamp posts.
     for (let i = 0; i < 3; i++) {
