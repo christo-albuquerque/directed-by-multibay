@@ -8,7 +8,8 @@ const STEEL = 0x9aa4b2;
 export function hood(len: number, width: number, height: number, color: number): Prefab {
   const wall = 0.75;
   const p = new Prefab();
-  p.box(wall, height, len, M(color), width / 2 - wall / 2, 0, 0).box(wall, height, len, M(color), -(width / 2 - wall / 2), 0, 0);
+  // Walls stop just inside the roof slab, so no two faces share the same plane at the roof's top.
+  p.box(wall, height - 0.7, len, M(color), width / 2 - wall / 2, 0, 0).box(wall, height - 0.7, len, M(color), -(width / 2 - wall / 2), 0, 0);
   p.box(width, 0.8, len, M(color), 0, height - 0.8, 0);
   // Rubber flaps at each end: items slide under them as they enter and leave.
   for (const z of [-len / 2, len / 2]) p.box(width - 2 * wall, height - 0.8 - 2.0, 0.25, M(DARK), 0, 2.0, z);
@@ -77,7 +78,7 @@ export function build(zone: string): Prefab {
 
 /** The piston head that stamps down inside the build frame. Origin is the lowest point of its stroke. */
 export function pistonHead(): Prefab {
-  return new Prefab().box(6.6, 1.1, 5.6, M(0xcbd5e1), 0, 0, 0).box(1.4, 3.2, 1.4, M(0x64748b), 0, 1.1, 0).box(6.8, 0.25, 5.8, M(0xf59e0b), 0, -0.2, 0);
+  return new Prefab().box(5.4, 1.1, 4.6, M(0xcbd5e1), 0, 0, 0).box(1.4, 3.2, 1.4, M(0x64748b), 0, 1.1, 0).box(5.6, 0.25, 4.8, M(0xf59e0b), 0, -0.2, 0);
 }
 
 /** TESTING GROUNDS: a walled arena open to the sky with gates on the belt axis, gantry towers and cannon mounts. */

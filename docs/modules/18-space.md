@@ -14,7 +14,7 @@ Everything above the ground: stars, atmosphere, moon, ring planet, clouds, satel
 - `globe/GlobeWorld.ts`: sun, moon and hemisphere lights; `DAY_SECONDS = 900`; `nightAt`; bloom; manual frame timing.
 - `city/Skyways.ts`: satellites on tilted orbits at R+210 to R+400.
 - **Demo Panel weather button** cycles six modes (`world/weatherModes.ts`): Dynamic (the random schedule), Clear, Rainy, Snow, Overcast, Off. Dynamic also includes snow and overcast spells; the others hold one state until changed.
-- `world/weather.ts` `Weather`: in Dynamic mode schedules a spell every 110–350 s (30% drizzle, 25% rain, 15% storm, 15% overcast, 15% snow, 40–110 s long); level eases in and out; dims sun (−60%) and hemisphere light (−30%); rain streaks around the camera focus; storms add two-blink lightning and delayed thunder (`sfx.rumble`); `sfx.rainOn`. `planet.weather.begin('storm', seconds)` forces a spell for testing.
+- `world/weather.ts` `Weather`: in Dynamic mode picks, when each spell ends, one of four skies with **equal chance**: clear, rain (a drizzle, rain or storm, equally likely), snow or overcast; each lasts 60–140 s; level eases in and out; dims sun (−60%) and hemisphere light (−30%); rain streaks around the camera focus; storms add two-blink lightning and delayed thunder (`sfx.rumble`); `sfx.rainOn`. `planet.weather.begin('storm', seconds)` forces a spell for testing.
 
 ## Invariants
 - Weather never reads build results; `dynamic` is the default.

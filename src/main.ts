@@ -131,7 +131,6 @@ async function boot(): Promise<void> {
       [30000, () => st.spawn({ failAt: 'test', label: 'pr-13' })],
       [46000, () => st.spawn({ failAt: 'lint', label: 'pr-14' })],
       [64000, () => st.spawn({ label: 'main#2' })],
-      [80000, () => st.spawn({ pr: true, label: 'pr-15' })],
     ];
     cycleTimers = steps.map(([ms, fn]) => window.setTimeout(fn, ms));
   };
@@ -147,7 +146,6 @@ async function boot(): Promise<void> {
     { label: '✖ Fail @ lint', run: () => void target().spawn({ failAt: 'lint' }) },
     { label: '✖ Fail @ build', run: () => void target().spawn({ failAt: 'build' }) },
     { label: '✖ Fail @ test', run: () => void target().spawn({ failAt: 'test' }) },
-    { label: '🚁 PR drone run', run: () => void target().spawn({ pr: true, label: 'pr-drone' }) },
     { label: '⏹ Cancel all', run: () => target().cancelAll() },
     { label: '⚡ Speed ×2', run: () => void (target().speed = target().speed > 0.4 ? 0.35 : 0.8) },
     { label: sfx.muted ? '🔇 Sound: off' : '🔊 Sound: on', run: () => (sfx.setMuted(!sfx.muted), sfx.muted ? '🔇 Sound: off' : '🔊 Sound: on') },

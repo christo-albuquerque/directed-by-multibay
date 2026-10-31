@@ -207,7 +207,7 @@ export class Port {
       for (const p of line.state.products) {
         if (p.status === 'launching' && !this.seen.has(p.id * 100 + i)) {
           this.seen.add(p.id * 100 + i);
-          this.pending.push({ pad: i, kind: p.pr || p.run?.event === 'pull_request' ? 'drone' : 'rocket' });
+          this.pending.push({ pad: i, kind: 'rocket' });
         }
       }
     });
@@ -373,7 +373,7 @@ export class Port {
           break;
         case 'unload': {
           // Waits for a craft to be docked on its pad before unloading.
-          const kind: CraftKind = t.carrying && (t.carrying.pr || t.carrying.run?.event === 'pull_request') ? 'drone' : 'rocket';
+          const kind: CraftKind = 'rocket';
           const dock = this.crafts.some((c) => c.pad === t.line && c.kind === 'rocket' && c.state === 'docked');
           if (!dock && !t.carrying) break;
           t.t += dt;
@@ -461,6 +461,12 @@ export class Port {
           surfaceMatrix(v3, fwd, sample.up, m4, 0.9 * Math.min(1, t.load * (1 + k * 0.4)));
           pools.crates.push(m4, 0xffffff);
         }
+      }
+      // The real run's own box sits on the bed (green-sealed) all the way to the pad.
+      if (t.carrying && t.state !== 'unload') {
+        v3.copy(sample.pos).addScaledVector(sample.up, 2.0).addScaledVector(fwd, -1.7);
+        surfaceMatrix(v3, fwd, sample.up, m4, 1.15);
+        pools.crates.push(m4, 0xc8f5c8);
       }
       // While unloading, boxes ride up to the rocket's cargo hatch and vanish inside it.
       if (t.state === 'unload' && t.carrying) {

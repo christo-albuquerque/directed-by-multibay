@@ -82,9 +82,14 @@ export const WATER_LEVEL = -2.8;
 /** 0 next to a district or road, 1 well clear: mountains and lakes only appear where there is room. */
 function landMask(dir: THREE.Vector3): number {
   let m = 1;
-  for (const z of ZONES) m = Math.min(m, 1 - Math.min(1, zoneWeight(z, dir, 30)));
-  if (m <= 0) return 0;
-  return Math.min(m, THREE.MathUtils.smoothstep(roadDistance(dir), 12, 28));
+  for (const z of ZONES) {
+    // Distance beyond the district's footprint: no hills at all within 45 units, full height only beyond 80.
+    const p = zoneChart(z).toLocal(dir);
+    const out = Math.max(Math.abs(p.x) - z.w / 2, Math.abs(p.y) - z.d / 2);
+    m = Math.min(m, THREE.MathUtils.smoothstep(out, 45, 80));
+    if (m <= 0) return 0;
+  }
+  return Math.min(m, THREE.MathUtils.smoothstep(roadDistance(dir), 18, 42));
 }
 
 /** Builds the planet surface: a low-poly sphere with biome colours and an excavated mine pit. */

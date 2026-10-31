@@ -12,6 +12,7 @@ Station 3: machines turn crates into sealed product boxes. In GitHub terms: **bu
 
 ## Current implementation
 - `line/prefabs.ts` `build`, `pistonHead`; `STATIONS[2]` anchor (24, −11), hidden housing, service 3.6 s, label "BUILD".
+- One piston press per lane (the head hangs under the frame and strokes between y 7.0 and 5.5, narrower than the corner columns, so its faces never share a plane with the frame, the roof or the columns: that overlap used to z-fight in stripes)
 - One piston press per lane (`Dyn` `pressHeads`) animates whenever an item is inside; chimney smoke (`Line.smoke`) scales with activity.
 - Crates enter as `crate`, the express item becomes a `box` halfway through service (`e.kind = 'box'`).
 - Crew: five corn operators (`hammer` style) on the near side; maintenance crews repair nearby generators.

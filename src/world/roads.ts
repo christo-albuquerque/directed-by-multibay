@@ -20,12 +20,20 @@ export const ROADS: RoadDef[] = [
   { pts: Array.from({ length: 19 }, (_, i): [number, number] => [-180 + i * 20, -34]), width: 2.8 },
 ];
 
+/** Roads drawn elsewhere (supply trunks, the port avenue and east road) that mountains must also stay away from. */
+const KEEP_CLEAR: RoadDef[] = [
+  { pts: [[-54, -11], [-47, -8], [-46, -2], [-46, 16], [-46, 31], [-46, 46]], width: 3 },
+  { pts: [[56, -2], [47, 2], [46, 6], [46, 24], [46, 38], [46, 46]], width: 3 },
+  { pts: [[0, 3], [0, 25], [0, 46]], width: 3 },
+  { pts: [[0, 4], [14, 4], [30, 4], [46, 5], [58, 10], [66, 18], [70, 24]], width: 3 },
+];
+
 let samples: THREE.Vector3[] | null = null;
 
 function roadSamples(): THREE.Vector3[] {
   if (samples) return samples;
   samples = [];
-  for (const r of ROADS) {
+  for (const r of [...ROADS, ...KEEP_CLEAR]) {
     for (let i = 0; i + 1 < r.pts.length; i++) {
       const a = lonLatDir(r.pts[i][0], r.pts[i][1]);
       const b = lonLatDir(r.pts[i + 1][0], r.pts[i + 1][1]);

@@ -946,8 +946,8 @@ export class Line {
     const bulkIn = build.occupant;
     const exIn = [...this.ex.values()].find((e) => e.stage === 2 && e.mode === 'inside');
     const pressCycle = (inside: boolean, tin: number): number => (inside ? Math.max(0, Math.sin(tin * 4.2)) : 0);
-    this.pressHeads[0].set(new THREE.Matrix4().makeTranslation(0, 8.3 - 5.6 * pressCycle(!!bulkIn, bulkIn?.t ?? 0), 0));
-    this.pressHeads[1].set(new THREE.Matrix4().makeTranslation(0, 8.3 - 5.6 * pressCycle(!!exIn, exIn?.t ?? 0), 0));
+    this.pressHeads[0].set(new THREE.Matrix4().makeTranslation(0, 7.0 - 1.5 * pressCycle(!!bulkIn, bulkIn?.t ?? 0), 0));
+    this.pressHeads[1].set(new THREE.Matrix4().makeTranslation(0, 7.0 - 1.5 * pressCycle(!!exIn, exIn?.t ?? 0), 0));
 
     // Arena cannons and the cannonball: the lab says when they fire.
     this.ball.mesh.visible = false;

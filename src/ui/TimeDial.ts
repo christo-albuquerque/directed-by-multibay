@@ -16,7 +16,7 @@ export class TimeDial {
     root.className = 'time-dial';
     root.setAttribute('role', 'group');
     root.setAttribute('aria-label', 'Time of day');
-    root.style.cssText = 'position:fixed;left:14px;bottom:14px;width:84px;height:84px;z-index:20;user-select:none;touch-action:none;font:600 11px system-ui,sans-serif;color:#cfe8ff';
+    root.style.cssText = 'position:fixed;right:14px;top:62px;width:84px;height:84px;z-index:20;user-select:none;touch-action:none;font:600 11px system-ui,sans-serif;color:#cfe8ff';
     root.innerHTML = `
       <svg viewBox="0 0 84 84" width="84" height="84" aria-hidden="true">
         <defs><linearGradient id="td-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd27a"/><stop offset="0.5" stop-color="#3b5b8a"/><stop offset="1" stop-color="#0b1020"/></linearGradient></defs>

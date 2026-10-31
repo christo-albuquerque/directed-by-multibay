@@ -72,13 +72,18 @@ export class Weather {
   update(dt: number, elapsed: number): void {
     if (this.mode === 'dynamic') this.timer -= dt;
     if (this.mode === 'dynamic' && this.timer <= 0) {
-      if (this.kind) {
+      // Every kind of sky is equally likely: clear, rain (a drizzle, a downpour or a storm), snow or overcast.
+      const options = ['clear', 'rain', 'snow', 'overcast'] as const;
+      const pick = options[Math.floor(Math.random() * options.length)];
+      if (pick === 'clear') {
         this.kind = null;
         this.target = 0;
-        this.timer = 110 + Math.random() * 240;
+        this.timer = 60 + Math.random() * 90;
+      } else if (pick === 'rain') {
+        const kinds = ['drizzle', 'rain', 'storm'] as const;
+        this.begin(kinds[Math.floor(Math.random() * kinds.length)], 60 + Math.random() * 80);
       } else {
-        const p = Math.random();
-        this.begin(p < 0.3 ? 'drizzle' : p < 0.55 ? 'rain' : p < 0.7 ? 'storm' : p < 0.85 ? 'overcast' : 'snow');
+        this.begin(pick, 60 + Math.random() * 80);
       }
     }
     this.level += (this.target - this.level) * (1 - Math.exp(-dt * 0.35));

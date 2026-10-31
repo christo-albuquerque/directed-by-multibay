@@ -15,7 +15,7 @@ Where trucks unload and rockets load and launch. A release counts as live **only
 - Per pad: 2 rockets + 2 drones in a state machine (docked → countdown → ascend → away → arrive → hover → landing → docked).
 - Flow: line dock `loaded` → express truck collects → drives its road → unloads when a rocket is docked → `product.cap` cleared → sim `launching` → countdown → ascend → `launched` (stats increment) → another craft lands.
 - Particles: engine flame and smoke per craft; the crowd on the line cheers (`Line.celebrate`).
-- `PR` runs launch a drone instead of a rocket.
+- Every release leaves by rocket. The PR drone run was removed (Demo Panel button gone, pull-request runs launch rockets like the rest); the courier drones remain only as ambient craft that dock, hover and land.
 
 ## Invariants
 - Eight pads; two rockets and two drones each; launching only after the truck unloads.

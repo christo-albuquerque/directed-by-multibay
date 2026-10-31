@@ -10,6 +10,7 @@ All scenery that fills the planet between and around districts.
 - Fixed, deterministic world.
 
 ## Current implementation
+- Mountains stay at least 45 units from every district's footprint (full height beyond 80) and 18-42 units from every road, including the supply trunks, port avenue and east road, so trucks never drive under a hill.
 - **Mountains and lakes** (`globe/terrain.ts` `reliefAt`): ridged peaks up to 15 units with rock and snow colouring, lakes as flat basins at `WATER_LEVEL` (−2.8). A `landMask` keeps both 28+ units from districts and 12–28 units from roads (`world/roads.ts`: `ROADS`, `roadDistance`). Scenery skips lakes.
 - Terrain colours (`globe/terrain.ts`): forest floor, meadow, rocky waste from `noise3`, matching the scatter.
 - `world/scatter.ts` `Scatter(batch, keepClear)`:
