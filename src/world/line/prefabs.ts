@@ -121,7 +121,7 @@ export function dispatch(zone: string): Prefab {
 /** The loading bay at the end of the belt: a small hood and an apron where trucks wait to collect boxes. */
 export function dock(zone: string): Prefab {
   const p = hood(7, 9.4, 3.8, 0x4a3a78);
-  p.box(14, 0.03, 16, M(0x4c505a), 0, 0.005, 11).box(14.2, 0.2, 0.4, glowMat(zone, 0xffd24a, 0.15, 2), 0, 0.06, 3);
+  p.box(14, 2.4, 16, M(0x4c505a), 0, -2.39, 11).box(14.2, 0.2, 0.4, glowMat(zone, 0xffd24a, 0.15, 2), 0, 0.06, 3);
   p.box(0.6, 1.4, 0.6, M(0xf5c542), -6.4, 0, 18).box(0.6, 1.4, 0.6, M(0xf5c542), 6.4, 0, 18);
   return p;
 }

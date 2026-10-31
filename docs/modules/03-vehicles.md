@@ -17,12 +17,12 @@ Everything that carries things or people: trucks, drones, forklifts, flying cars
 - **Rockets and drones** (`port/Port.ts`): 8 pads (6 repo + 2 freight); each pad has 2 rockets and 2 drones in a craft state machine (docked, countdown, ascend, away, arrive, hover, landing). Rockets launch for `main`; drones carry `pull_request` runs.
 - **Farm vehicles:** planters and combines work rows (04). **Mine:** dump trucks, excavator, rail carts (05).
 - **Sky traffic** (`city/Skyways.ts`): hover cars on neon lanes at heights 24 to 48, package drones on loops at 22 to 31, satellites on high orbits. Lanes are above every building.
-- **Forklifts** (line/props.ts, Line.updateForklift): one per line shuttles a crate between two pallet stacks at the east loading bay (forks rise to lift, drop to set down).
+- **Forklifts** (line/props.ts, Line.updateForklift): one per line works the dock apron aisle between the two parked delivery trucks, loading crates into their beds (see 11).
 - **Supply trucks** (`world/supply.ts`): one crop or ore truck per line, hidden while loading in its shed, then driving a registered road to the depot bay, unloaded by two porters with trolleys, then back in the opposite lane.
 
 ## Invariants
 - One supply truck per line plus two delivery trucks per line; express truck waits for a real run; release only counts when the rocket lifts off.
-- One forklift per line at the loading bay, between its two stacks.
+- One forklift per line on the dock apron, between the two truck bays; the two delivery trucks park in separate bays, nose out.
 - Eight pads, two rockets and two drones per pad.
 - Closed loops; no spawn/despawn in view.
 - Sky lanes stay above the tallest building in the area.
@@ -31,6 +31,6 @@ Everything that carries things or people: trucks, drones, forklifts, flying cars
 - New vehicle: model in `vehicles.ts`, pool it, give it a registered route (06), put its depot/hangar in its district's module.
 
 ## Known gaps
-- Forklifts exist only at each line's east loading bay; none at the depot or port yet.
+- Forklifts exist only on each line's dock apron; none at the depot or port yet.
 - Freight pads and power-field utility vehicles are minimal.
 - Delivery roads from docks to the avenue share the avenue lane.

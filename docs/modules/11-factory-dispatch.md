@@ -12,6 +12,7 @@ Station 5 and the dock: products that passed tests are packed and loaded (by han
 - `line/prefabs.ts` `dispatch`, `packer`, `dock`; `STATIONS[4]` anchor (−12, 11), hidden housing, service 3 s, label "DISPATCH".
 - Dock at the belt end (`Line.dockPose`): a hood where the finished real run waits (`Express` mode `loaded`, `cap = 4.99`) until its express truck arrives.
 - `Line.waitingAtDock()` / `collectFromDock()` hand the run to the port's truck; the line forgets its visual (`dispatched` set prevents re-creation).
+- **Dock apron:** a solid block (top at pad height) with two parking bays side by side at lateral ±3.5, rear to the hood. The express truck uses the left bay and the shuttle truck the right; both park nose out and never queue into the hood. A truck swings from its bay into the road lane over the first 9 units and back when returning. A forklift (`Line.updateForklift`) works the aisle between the bays: it picks a crate from the pile by the hood door, drives down the aisle, turns to a bay that has a truck and sets the crate in its bed (`Line.bays` is set by the port).
 - Crew: rice loaders and packers (`load`, `pack`) beside the dock; haulers bring crates from piles.
 
 ## Invariants

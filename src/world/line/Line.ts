@@ -126,7 +126,10 @@ export class Line {
   private testCounter = 0;
   private fx?: Env['fx'];
   private funnelPos = new THREE.Vector3();
-  private lift?: { path: SurfacePath; body: Dyn; forks: Dyn; crate: Dyn; s: number; dir: 1 | -1; wait: number; h: number; loaded: boolean };
+  private lift?: { body: Dyn; forks: Dyn; crate: Dyn; t: number; bay: 0 | 1; running: boolean };
+  private dockMatrix = new THREE.Matrix4();
+  /** Which of the dock apron's two bays has a truck parked in it (set by the port). */
+  readonly bays: [boolean, boolean] = [false, false];
   private zipped = new Set<number>();
   private spawnTimer = 2;
   private pressHeads: Dyn[] = [];
@@ -491,52 +494,76 @@ export class Line {
     // Hazmat funnel beside the rescue hut, where the crew dump swept-up debris.
     this.funnelPos = this.chart.point(-39.2, -3.6, PAD_TOP + 2.4);
     batch.placeOn(funnel(zone), this.chart, -39.2, -3.6, PAD_TOP, 0);
-    // A forklift shuttles pallets of boxes between two stacks at the east loading bay.
+    // A forklift loads the trucks parked on the dock apron.
     this.buildForklift(batch);
   }
 
+  /**
+   * The dock apron has two parking bays side by side. A forklift works the aisle between them: it picks a crate from the
+   * pile by the hood door, drives down the aisle, turns to the truck parked in a bay and sets the crate in its bed.
+   */
   private buildForklift(batch: StaticBatch): void {
-    for (const x of [40.6, 50.4]) batch.placeOn(cratePile(), this.chart, x, 4.6, PAD_TOP, Math.PI / 2);
-    const path = SurfacePath.through(this.chart, [[42.8, 4.6], [48.2, 4.6]], PAD_TOP, false, 0.4);
-    this.lift = { path, body: new Dyn(forkliftBody(), new THREE.Matrix4(), this.group), forks: new Dyn(forkliftForks(), new THREE.Matrix4(), this.group), crate: new Dyn(new Prefab().box(0.8, 0.8, 0.8, M(0xb98a52), 0, 0, 0).box(0.84, 0.1, 0.84, M(0x8a6236), 0, 0.5, 0), new THREE.Matrix4(), this.group), s: 0, dir: 1, wait: 1.2, h: 0.1, loaded: true };
+    const endFlat = this.route.flatAt(this.route.length);
+    const endTan = this.route.flatTangentAt(this.route.length - 1);
+    this.dockMatrix = this.chart.matrix(endFlat.x, endFlat.y, PAD_TOP, Math.atan2(endTan.x, endTan.y));
+    batch.place(cratePile(), new THREE.Matrix4().multiplyMatrices(this.dockMatrix, new THREE.Matrix4().makeTranslation(0, 0, 5.2)));
+    this.lift = { body: new Dyn(forkliftBody(), new THREE.Matrix4(), this.group), forks: new Dyn(forkliftForks(), new THREE.Matrix4(), this.group), crate: new Dyn(new Prefab().box(0.8, 0.8, 0.8, M(0xb98a52), 0, 0, 0).box(0.84, 0.1, 0.84, M(0x8a6236), 0, 0.5, 0), new THREE.Matrix4(), this.group), t: 0, bay: 0, running: false };
   }
 
-  /** Drives the forklift: carry a crate to the far stack, set it down, go back, pick the next one up. */
+  /** One forklift cycle as keyframes in the apron's own frame (x across, z along): time, x, z, heading, fork height, crate on forks. */
+  private static forkliftPlan(bay: 0 | 1): [number, number, number, number, number, boolean][] {
+    const sg = bay === 0 ? -1 : 1;
+    return [
+      [0, 0, 7.6, Math.PI, 0.1, false],
+      [1.0, 0, 7.6, Math.PI, 1.1, true],
+      [1.8, 0, 7.6, 0, 1.1, true],
+      [3.4, 0, 10.6, 0, 1.1, true],
+      [4.2, 0, 10.6, sg * Math.PI / 2, 1.1, true],
+      [4.9, sg * 0.9, 10.6, sg * Math.PI / 2, 1.1, true],
+      [5.8, sg * 0.9, 10.6, sg * Math.PI / 2, 0.5, false],
+      [6.5, 0, 10.6, sg * Math.PI / 2, 0.1, false],
+      [7.3, 0, 10.6, Math.PI, 0.1, false],
+      [9.0, 0, 7.6, Math.PI, 0.1, false],
+    ];
+  }
+
+  /** Drives the forklift through its plan, bay by bay, for whichever bays have a truck parked in them. */
   private updateForklift(dt: number): void {
     const f = this.lift;
     if (!f) return;
-    const len = f.path.length;
-    if (f.wait > 0) {
-      f.wait -= dt;
-      // Forks rise to take a crate at the start, drop to set it down at the end.
-      const target = f.loaded ? 0.1 : 1.1;
-      f.h += (target - f.h) * Math.min(1, dt * 3);
-      if (f.wait <= 0) {
-        f.loaded = !f.loaded;
-        f.dir = (f.dir === 1 ? -1 : 1) as 1 | -1;
-        f.wait = 0;
+    const dur = 9;
+    if (!f.running) {
+      const bay = this.bays[0] && (!this.bays[1] || f.bay === 1) ? 0 : this.bays[1] ? 1 : -1;
+      if (bay >= 0) {
+        f.bay = bay as 0 | 1;
+        f.running = true;
+        f.t = 0;
       }
     } else {
-      f.s += f.dir * 2.4 * dt;
-      f.h += ((f.loaded ? 1.1 : 0.1) - f.h) * Math.min(1, dt * 3);
-      if ((f.dir === 1 && f.s >= len) || (f.dir === -1 && f.s <= 0)) {
-        f.s = Math.min(len, Math.max(0, f.s));
-        f.wait = 1.4;
-        // Arriving loaded: lower and release; arriving empty: lift the next crate.
-      }
+      f.t += dt;
+      if (f.t >= dur) f.running = false;
     }
-    f.path.at(f.s, tmpS);
-    surfaceMatrix(tmpP.copy(tmpS.pos), tmpV.copy(tmpS.tangent).multiplyScalar(f.dir), tmpS.up, tmpM);
+    const plan = Line.forkliftPlan(f.bay);
+    const t = f.running ? f.t : 0;
+    let i = 0;
+    while (i < plan.length - 2 && t > plan[i + 1][0]) i++;
+    const a = plan[i];
+    const b = plan[Math.min(i + 1, plan.length - 1)];
+    const k = f.running ? THREE.MathUtils.clamp((t - a[0]) / Math.max(0.001, b[0] - a[0]), 0, 1) : 0;
+    const x = THREE.MathUtils.lerp(a[1], b[1], k);
+    const z = THREE.MathUtils.lerp(a[2], b[2], k);
+    const yaw = a[3] + Math.atan2(Math.sin(b[3] - a[3]), Math.cos(b[3] - a[3])) * k;
+    const h = THREE.MathUtils.lerp(a[4], b[4], k);
+    tmpM.copy(this.dockMatrix).multiply(new THREE.Matrix4().makeTranslation(x, 0, z)).multiply(new THREE.Matrix4().makeRotationY(yaw));
     f.body.mesh.matrix.copy(tmpM);
     f.body.mesh.matrixWorldNeedsUpdate = true;
-    const fm = tmpM.clone().multiply(new THREE.Matrix4().makeTranslation(0, f.h, 0));
+    const fm = tmpM.clone().multiply(new THREE.Matrix4().makeTranslation(0, h, 0));
     f.forks.mesh.matrix.copy(fm);
     f.forks.mesh.matrixWorldNeedsUpdate = true;
-    f.crate.mesh.visible = f.loaded;
+    f.crate.mesh.visible = f.running && a[5] && b[5] ? true : f.running && a[5] && k < 0.5;
     f.crate.mesh.matrix.copy(fm).multiply(new THREE.Matrix4().makeTranslation(0, 0.6, 1.65));
     f.crate.mesh.matrixWorldNeedsUpdate = true;
   }
-
   /** Fills the belt with a plausible mid-shift spread so the line never starts empty. */
   private seedItems(): void {
     for (let s = 14; s < this.bulk.length - 4; s += 11 + Math.random() * 5) {

@@ -15,6 +15,8 @@ import type { Env, Pools } from '../types';
 import { courierDrone, deliveryTruck } from '../vehicles';
 
 const PAD_Y = 0.35;
+/** Sideways distance of each of the two parking bays from the dock apron's centre line. */
+const BAY_LAT = 3.5;
 const ease = (t: number): number => t * t * (3 - 2 * t);
 const v3 = new THREE.Vector3();
 const v4 = new THREE.Vector3();
@@ -265,7 +267,7 @@ export class Port {
       case 'arrive': {
         const dur = rocket ? 15 : 9;
         const k = Math.min(1, c.t / dur);
-        c.alt = THREE.MathUtils.lerp(rocket ? 1400 : 700, rocket ? 90 : 26, ease(k));
+        c.alt = THREE.MathUtils.lerp(rocket ? 600 : 360, rocket ? 90 : 26, ease(k));
         c.drift.copy(c.from);
         if (k >= 1) {
           c.state = 'hover';
@@ -340,6 +342,7 @@ export class Port {
     for (const t of this.fleet) {
       const line = this.lines[t.line];
       const road = this.roads[t.line];
+      line.bays[t.slot as 0 | 1] = t.state === 'wait';
       const firstWaiting = this.fleet.find((o) => o.line === t.line && o.state === 'wait');
       switch (t.state) {
         case 'wait': {
@@ -405,6 +408,9 @@ export class Port {
     const up = new THREE.Vector3();
     for (const c of this.crafts) {
       if (c.state === 'away') continue;
+      // High in the sky a craft shrinks out of sight: rockets leave the planet unseen and come back down from above.
+      const unseen = THREE.MathUtils.smoothstep(c.alt, 180, 260);
+      if (unseen >= 1) continue;
       this.craftPos(c, v3);
       up.copy(this.padUp[c.pad]);
       // Tilt toward the direction of travel as it climbs or arrives.
@@ -412,10 +418,14 @@ export class Port {
       const dir = up.clone().addScaledVector(c.drift, tilt * (c.state === 'arrive' ? -1 : 1)).normalize();
       if (c.state === 'countdown') dir.addScaledVector(c.drift, Math.sin(env.elapsed * 55) * 0.004).normalize();
       // Upright basis whose y axis is `dir`.
+      // A docked craft has no drift and points straight up: pick any sideways axis that is truly perpendicular to its
+      // heading (the old fallback was not, which sheared docked rockets into flat slabs).
       const x = new THREE.Vector3().crossVectors(dir, c.drift.lengthSq() ? c.drift : up).normalize();
-      if (x.lengthSq() < 1e-6) x.set(1, 0, 0);
+      if (x.lengthSq() < 1e-6) {
+        x.crossVectors(dir, Math.abs(dir.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).normalize();
+      }
       const z = new THREE.Vector3().crossVectors(x, dir).normalize();
-      m4.makeBasis(x, dir, z).setPosition(v3);
+      m4.makeBasis(x, dir, z).scale(new THREE.Vector3().setScalar(1 - unseen)).setPosition(v3);
       (c.kind === 'rocket' ? this.rockets : this.drones).push(m4);
     }
     // Trucks and their loads.
@@ -424,13 +434,20 @@ export class Port {
       const s = Math.min(road.length, Math.max(0, t.s));
       road.at(s, sample);
       const outbound = t.state === 'drive' || t.state === 'unload';
-      const fwd = outbound ? sample.tangent : v3.copy(sample.tangent).negate();
       v4.crossVectors(sample.up, sample.tangent).normalize();
-      sample.pos.addScaledVector(v4, outbound ? -1.6 : 1.6);
-      if (t.state === 'wait') {
-        // Trucks queue at the dock, the first one under the loading chute.
-        const behind = this.fleet.filter((o) => o.line === t.line && o.state === 'wait');
-        sample.pos.addScaledVector(sample.tangent, -(behind.indexOf(t) * 10));
+      // Two parking bays side by side on the apron (one per truck), rear to the dock hood. Leaving or arriving, a truck
+      // slides from its bay into the road's lane over the first few units.
+      const bayLat = t.slot === 0 ? -BAY_LAT : BAY_LAT;
+      const laneLat = outbound ? -1.6 : 1.6;
+      const lat = t.state === 'wait' ? bayLat : THREE.MathUtils.lerp(bayLat, laneLat, THREE.MathUtils.smoothstep(s, 0, 9));
+      sample.pos.addScaledVector(v4, lat);
+      const fwd = v3.copy(sample.tangent);
+      if (t.state === 'return') {
+        // Arrives facing the dock, then swings round to park nose out.
+        fwd.negate();
+        if (s < 10) fwd.applyAxisAngle(sample.up, Math.PI * (1 - s / 10) * (t.slot === 0 ? 1 : -1));
+      } else if (!outbound && t.state !== 'wait') {
+        fwd.negate();
       }
       surfaceMatrix(sample.pos, fwd, sample.up, m4);
       this.trucks.push(m4);
