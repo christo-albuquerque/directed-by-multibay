@@ -45,6 +45,11 @@ export class GlobeControls {
   private lastMidY = 0;
   private lastMove = 0;
   private keys = new Set<string>();
+  /** A glowing line through the planet (with a ring round it) showing what the globe is being rotated about. */
+  readonly axisGuide = new THREE.Group();
+  private axisMats: THREE.Material[] = [];
+  private axisVec = new THREE.Vector3(0, 1, 0);
+  private axisAlpha = 0;
   /** Set false (reduced motion) to stop inertia. */
   inertia = true;
   /** Called when the user takes over from a fly-to. */
@@ -55,6 +60,19 @@ export class GlobeControls {
     private el: HTMLElement,
   ) {
     this.fromHeading(this.heading);
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x35e0ff, transparent: true, opacity: 0, depthTest: false });
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x35e0ff, transparent: true, opacity: 0, depthTest: false });
+    this.axisMats = [lineMat, ringMat];
+    const half = R + 90;
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -half, 0), new THREE.Vector3(0, half, 0)]), lineMat);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(R + 4, 0.35, 6, 96), ringMat);
+    ring.rotation.x = Math.PI / 2;
+    for (const o of [line, ring]) {
+      o.renderOrder = 50;
+      o.frustumCulled = false;
+    }
+    this.axisGuide.add(line, ring);
+    this.axisGuide.visible = false;
     el.addEventListener('pointerdown', (e) => this.down(e));
     el.addEventListener('pointermove', (e) => this.move(e));
     el.addEventListener('pointerup', (e) => this.up(e));
@@ -146,13 +164,34 @@ export class GlobeControls {
     this.carry(old, next);
   }
 
+  /** Lights up the rotation guide about an axis (smoothed, so a jittery drag does not make it flicker). */
+  private showAxis(axis: THREE.Vector3): void {
+    if (!Number.isFinite(axis.x + axis.y + axis.z) || axis.lengthSq() < 1e-6) return;
+    // Axes are lines: flip to the side nearest the last one so it never swings through the opposite direction.
+    if (axis.dot(this.axisVec) < 0) axis.negate();
+    this.axisVec.lerp(axis, this.axisAlpha > 0.05 ? 0.25 : 1).normalize();
+    this.axisAlpha = 1;
+  }
+
+  private updateAxis(dt: number): void {
+    if (this.pointers.size === 0) this.axisAlpha = Math.max(0, this.axisAlpha - dt / 0.5);
+    this.axisGuide.visible = this.axisAlpha > 0.01;
+    if (!this.axisGuide.visible) return;
+    this.axisGuide.quaternion.setFromUnitVectors(tmpA.set(0, 1, 0), this.axisVec);
+    for (const m of this.axisMats) (m as THREE.Material & { opacity: number }).opacity = 0.75 * this.axisAlpha;
+  }
+
   /** Turns the camera about the focus. */
   private turn(dh: number): void {
     this.fwd.applyAxisAngle(this.dir, dh);
   }
 
   private down(e: PointerEvent): void {
-    this.el.setPointerCapture?.(e.pointerId);
+    try {
+      this.el.setPointerCapture?.(e.pointerId);
+    } catch {
+      // Capture is only a convenience (it keeps the drag when the pointer leaves the canvas).
+    }
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     this.vel.set(0, 0);
     this.cancelFly();
@@ -176,9 +215,16 @@ export class GlobeControls {
     this.lastMove = performance.now();
     if (this.pointers.size === 1) {
       if (e.buttons & 2 || e.shiftKey) {
+        this.showAxis(this.dir.clone());
         this.turn(-dx * 0.005);
         this.tilt = THREE.MathUtils.clamp(this.tilt - dy * 0.004, 0, 1.25);
       } else {
+        if (dx !== 0 || dy !== 0) {
+          // The globe turns about the axis perpendicular to both the focus direction and the direction it is dragged.
+          const right = tmpA.crossVectors(this.dir, this.fwd);
+          const move = tmpB.copy(right).multiplyScalar(-dx).addScaledVector(this.fwd, -dy).normalize();
+          this.showAxis(new THREE.Vector3().crossVectors(this.dir, move).normalize());
+        }
         this.panBy(dx, dy);
         // Smooth the flick so one jittery event cannot launch the globe.
         this.vel.lerp(tmpA.set(dx, dy), 0.5);
@@ -190,6 +236,7 @@ export class GlobeControls {
       const ang = Math.atan2(b.y - a.y, b.x - a.x);
       const midY = (a.y + b.y) / 2;
       if (this.lastPinch > 0 && d > 1) this.dist = THREE.MathUtils.clamp(this.dist * THREE.MathUtils.clamp(this.lastPinch / d, 0.8, 1.25), MIN_DIST, MAX_DIST);
+      this.showAxis(this.dir.clone());
       this.turn(-Math.atan2(Math.sin(ang - this.lastAngle), Math.cos(ang - this.lastAngle)));
       this.tilt = THREE.MathUtils.clamp(this.tilt - (midY - this.lastMidY) * 0.004, 0, 1.25);
       this.lastPinch = d;
@@ -252,6 +299,7 @@ export class GlobeControls {
     }
     this.tilt = Math.min(this.tilt, this.maxTilt());
     this.apply();
+    this.updateAxis(dt);
   }
 
   private apply(): void {

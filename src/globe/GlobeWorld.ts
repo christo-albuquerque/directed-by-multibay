@@ -68,6 +68,8 @@ export class GlobeWorld {
     sc.far = 700;
 
     this.controls = new GlobeControls(this.camera, this.renderer.domElement);
+    // Shown while dragging: the axis the world is being turned about.
+    this.scene.add(this.controls.axisGuide);
     this.controls.inertia = !motion.reduced;
 
     this.composer = new EffectComposer(this.renderer);
