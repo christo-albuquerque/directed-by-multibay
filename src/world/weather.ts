@@ -4,8 +4,10 @@ import { R } from '../globe/surface';
 import { sfx } from '../ui/sfx';
 import { motion } from '../ui/motion';
 
-export type WeatherKind = 'drizzle' | 'rain' | 'storm';
-const TARGET: Record<WeatherKind, number> = { drizzle: 0.4, rain: 0.75, storm: 1 };
+import type { WeatherKind, WeatherMode } from './weatherModes';
+export { WEATHER_MODES } from './weatherModes';
+export type { WeatherKind, WeatherMode } from './weatherModes';
+const TARGET: Record<WeatherKind, number> = { drizzle: 0.4, rain: 0.75, storm: 1, snow: 0.7, overcast: 0.6 };
 const DROPS = 1800;
 
 /**
@@ -16,6 +18,7 @@ export class Weather {
   /** 0 = clear sky, 1 = full storm (smoothed). */
   level = 0;
   kind: WeatherKind | null = null;
+  mode: WeatherMode = 'dynamic';
   private target = 0;
   private timer = 70 + Math.random() * 120;
   private streaks: THREE.LineSegments;
@@ -42,6 +45,23 @@ export class Weather {
     world.scene.add(this.streaks);
   }
 
+  /** Picks what the sky does: its own random schedule, or one held state. */
+  setMode(mode: WeatherMode): void {
+    this.mode = mode;
+    if (mode === 'dynamic') {
+      this.kind = null;
+      this.target = 0;
+      this.timer = 20 + Math.random() * 40;
+    } else if (mode === 'clear' || mode === 'off') {
+      this.kind = null;
+      this.target = 0;
+    } else {
+      this.kind = mode;
+      this.target = TARGET[mode];
+      this.timer = Infinity;
+    }
+  }
+
   /** Starts a spell of weather now (also used for testing). */
   begin(kind: WeatherKind, seconds = 60 + Math.random() * 50): void {
     this.kind = kind;
@@ -50,15 +70,15 @@ export class Weather {
   }
 
   update(dt: number, elapsed: number): void {
-    this.timer -= dt;
-    if (this.timer <= 0) {
+    if (this.mode === 'dynamic') this.timer -= dt;
+    if (this.mode === 'dynamic' && this.timer <= 0) {
       if (this.kind) {
         this.kind = null;
         this.target = 0;
         this.timer = 110 + Math.random() * 240;
       } else {
         const p = Math.random();
-        this.begin(p < 0.45 ? 'drizzle' : p < 0.8 ? 'rain' : 'storm');
+        this.begin(p < 0.3 ? 'drizzle' : p < 0.55 ? 'rain' : p < 0.7 ? 'storm' : p < 0.85 ? 'overcast' : 'snow');
       }
     }
     this.level += (this.target - this.level) * (1 - Math.exp(-dt * 0.35));
@@ -67,7 +87,8 @@ export class Weather {
     const lv = this.level;
     const w = this.world;
     // Dim the day: the clouds take most of the sun.
-    w.sun.intensity *= 1 - 0.6 * lv;
+    const heavy = this.kind === 'overcast' ? 0.75 : 0.6;
+    w.sun.intensity *= 1 - heavy * lv;
     w.hemi.intensity *= 1 - 0.3 * lv;
 
     if (this.kind === 'storm' && lv > 0.6) {
@@ -90,15 +111,18 @@ export class Weather {
       if (on && !motion.reduced) w.hemi.intensity += 4.5;
     }
 
-    const wet = lv > 0.06;
+    const snowing = this.kind === 'snow';
+    const falling = this.kind !== null && this.kind !== 'overcast';
+    const wet = lv > 0.06 && falling && !snowing;
     if (wet !== this.sound) {
       this.sound = wet;
       sfx.rainOn(wet);
     }
     const camDist = w.controls.view.dist;
-    this.streaks.visible = wet && camDist < 320;
+    this.streaks.visible = lv > 0.06 && falling && camDist < 320;
     if (!this.streaks.visible) return;
-    this.mat.opacity = 0.5 * Math.min(1, lv * 1.4);
+    this.mat.color.setHex(snowing ? 0xffffff : 0xb4ccff);
+    this.mat.opacity = (snowing ? 0.85 : 0.5) * Math.min(1, lv * 1.4);
 
     // Rain falls around the point the camera looks at, in that place's own "down".
     const focus = w.controls.focus;
@@ -110,7 +134,8 @@ export class Weather {
     this.base.copy(this.up).multiplyScalar(R);
     const radius = THREE.MathUtils.clamp(camDist * 0.9, 30, 90);
     const height = 45;
-    const fall = 55;
+    const fall = snowing ? 7 : 55;
+    const len = snowing ? 0.35 : 1.8;
     const count = Math.floor(DROPS * Math.min(1, 0.25 + lv));
     for (let i = 0; i < DROPS; i++) {
       const o = i * 3;
@@ -121,8 +146,10 @@ export class Weather {
       let y = this.local[o + 1] - (fall * dt) / height;
       if (y < 0) y += 1;
       this.local[o + 1] = y;
-      const x = this.local[o] * radius;
-      const z = this.local[o + 2] * radius;
+      // Snowflakes drift sideways as they fall.
+      const sway = snowing ? Math.sin(elapsed * 0.9 + i) * 1.4 : 0;
+      const x = this.local[o] * radius + sway;
+      const z = this.local[o + 2] * radius + (snowing ? Math.cos(elapsed * 0.7 + i * 1.3) * 1.2 : 0);
       const h = y * height;
       const k = i * 6;
       const px = this.base.x + this.right.x * x + this.up.x * h + this.fwd.x * z;
@@ -131,9 +158,9 @@ export class Weather {
       this.pos[k] = px;
       this.pos[k + 1] = py;
       this.pos[k + 2] = pz;
-      this.pos[k + 3] = px - this.up.x * 1.8;
-      this.pos[k + 4] = py - this.up.y * 1.8;
-      this.pos[k + 5] = pz - this.up.z * 1.8;
+      this.pos[k + 3] = px - this.up.x * len;
+      this.pos[k + 4] = py - this.up.y * len;
+      this.pos[k + 5] = pz - this.up.z * len;
     }
     (this.streaks.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
     void elapsed;

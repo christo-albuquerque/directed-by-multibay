@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { MAX_LINES, ZONES } from './globe/zones';
 import { LOOKS } from './world/crowd';
 import { APRON, STATIONS, STATION_GAP } from './world/line/layout';
+import { TEST_KINDS, TestLab } from './world/line/testlab';
+import { WEATHER_MODES } from './world/weatherModes';
 
 /** Every module baseline file (docs/modules/NN-name.md plus the README index), as raw text. */
 const docs = import.meta.glob('../docs/modules/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
@@ -52,5 +54,15 @@ describe('invariants named in the module files still hold in code', () => {
     expect(STATION_GAP).toHaveLength(STATIONS.length);
     expect(STATION_GAP.map((g) => g.hood)).toEqual(STATIONS.map((s) => s.hidden));
     expect(APRON).toBeGreaterThan(0);
+  });
+
+  it('testing grounds (10): four test kinds, and a failing product always gets the exploding rocket test', () => {
+    expect(TEST_KINDS).toEqual(['drop', 'gun', 'cannon', 'rocket']);
+    expect(new Set([0, 1, 2, 3].map((v) => TestLab.kindOf(v, false))).size).toBe(4);
+    expect(TestLab.kindOf(0, true)).toBe('rocket');
+  });
+
+  it('weather (18): the Demo Panel can pick every documented state', () => {
+    expect(WEATHER_MODES).toEqual(['dynamic', 'clear', 'rain', 'snow', 'overcast', 'off']);
   });
 });

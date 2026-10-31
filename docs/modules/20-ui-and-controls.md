@@ -12,7 +12,8 @@ How a person looks around, inspects runs, and runs the demo, on desktop and phon
 ## Current implementation
 - `globe/GlobeControls.ts`: drag turns the globe; right-drag or shift-drag turns/tilts; wheel and pinch zoom (`MIN_DIST 26`, `MAX_DIST 560`); two fingers rotate and tilt; arrow keys/WASD pan, Q/E rotate, +/− zoom; `flyTo` for presets and selection.
   - The camera facing is a tangent vector **carried along the surface** (parallel transport), never measured from north, so there is no pole singularity.
-  - Per-event movement is clamped (90 px), flick glide is capped (28 px/frame) and scaled by frame time, stale pointers are cleared on blur or lost capture, NaN moves are ignored.
+  - **Camera roll fix:** screen-up is built from the carried frame in the plane of the view (`dir * sin(tilt) - fwd * cos(tilt)`). The old code used the surface normal as camera up, which is parallel to the view at tilt 0 (reached by right-drag tilting down); `lookAt` then picked a random roll and the next left-drag spun the globe wildly.
+- Per-event movement is clamped (90 px), flick glide is capped (28 px/frame) and scaled by frame time, stale pointers are cleared on blur or lost capture, NaN moves are ignored.
 - `ui/NavPanel.ts`: presets (Planet, Factory, Market, Rocket port, Farms, Mines) with `flyTo`.
 - `ui/LivePanel.ts`, `ProductPanel.ts`, `DemoPanel.ts`: live status, run details, demo buttons.
 - `ui/sfx.ts`: synthesized sound (siren, boom, crash, thud, stamp, rumble, squeak, rain); `ui/motion.ts`: reduced motion.

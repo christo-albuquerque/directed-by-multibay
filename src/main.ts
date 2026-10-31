@@ -4,8 +4,8 @@ import { getToken, labelsFor, loadConfig, loadDefaultRepos, loadSavedRepos, reso
 import { GitHubPoller, type PollerMeta } from './data/github';
 import { GlobeWorld } from './globe/GlobeWorld';
 import { lonLatDir, R } from './globe/surface';
-import type { FactoryMode, FactoryStats } from './sim/factory';
-import type { NormalizedRun } from './sim/runs';
+import type { FactoryMode, FactoryStats, Product } from './sim/factory';
+import type { JobInfo, NormalizedRun } from './sim/runs';
 import { DemoPanel } from './ui/DemoPanel';
 import { LivePanel } from './ui/LivePanel';
 import { motion } from './ui/motion';
@@ -13,6 +13,7 @@ import { NavPanel } from './ui/NavPanel';
 import { ProductPanel } from './ui/ProductPanel';
 import { sfx } from './ui/sfx';
 import { PlanetWorld } from './world/PlanetWorld';
+import { WEATHER_MODES, type WeatherMode } from './world/weather';
 
 function webglAvailable(): boolean {
   try {
@@ -120,6 +121,12 @@ async function boot(): Promise<void> {
     cycleTimers = steps.map(([ms, fn]) => window.setTimeout(fn, ms));
   };
 
+  const WEATHER_NAMES: Record<WeatherMode, string> = { dynamic: '🌦 Weather: Dynamic', clear: '☀ Weather: Clear', rain: '🌧 Weather: Rainy', snow: '❄ Weather: Snow', overcast: '☁ Weather: Overcast', off: '⛔ Weather: Off' };
+  const weatherLabel = (): string => WEATHER_NAMES[planet.weather.mode];
+  const job = (name: string, steps: { name: string; number: number; status: string; conclusion: string | null }[] = []): JobInfo => ({ id: Math.floor(Math.random() * 1e9), name, status: 'completed', conclusion: 'success', startedAt: 0, completedAt: 1, steps });
+  /** Gives a demo product the job list a real run would carry, so matrix convoys and cache zips can be shown. */
+  const withJobs = (p: Product, jobs: JobInfo[]): void => void ((p as unknown as { run: { jobs: JobInfo[] } }).run = { jobs });
+
   const panel = new DemoPanel(document.body, [
     { label: '▶ Success run', run: () => void target().spawn() },
     { label: '✖ Fail @ lint', run: () => void target().spawn({ failAt: 'lint' }) },
@@ -130,6 +137,9 @@ async function boot(): Promise<void> {
     { label: '⚡ Speed ×2', run: () => void (target().speed = target().speed > 0.4 ? 0.35 : 0.8) },
     { label: sfx.muted ? '🔇 Sound: off' : '🔊 Sound: on', run: () => (sfx.setMuted(!sfx.muted), sfx.muted ? '🔇 Sound: off' : '🔊 Sound: on') },
     { label: motion.reduced ? '🐢 Motion: reduced' : '🎬 Motion: full', run: () => (motion.set(!motion.reduced), (world.controls.inertia = !motion.reduced), motion.reduced ? '🐢 Motion: reduced' : '🎬 Motion: full') },
+    { label: '🧩 Matrix build', run: () => void withJobs(target().spawn({ label: 'matrix' }), [job('test (node 18)'), job('test (node 20)'), job('test (node 22)')]) },
+    { label: '⚡ Cache hit run', run: () => void withJobs(target().spawn({ label: 'cache-hit' }), [job('build', [{ name: 'Restore cache', number: 1, status: 'completed', conclusion: 'success' }])]) },
+    { label: weatherLabel(), run: () => (planet.weather.setMode(WEATHER_MODES[(WEATHER_MODES.indexOf(planet.weather.mode) + 1) % WEATHER_MODES.length]), weatherLabel()), wide: true },
     { label: '🎬 Full cycle', run: fullCycle, wide: true },
   ]);
 

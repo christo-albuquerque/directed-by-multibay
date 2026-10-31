@@ -97,7 +97,6 @@ export function arena(zone: string): Prefab {
   for (const sx of [-1, 1]) {
     p.box(2.2, 1.2, 2.2, M(0x3d4658), sx * 6, 0, 3).box(1.2, 0.2, 1.2, glowMat(zone, 0xff3b2f, 0.12, 2), sx * 6, 1.6, 3);
   }
-  p.box(14, 3, 0.5, M(0x7a746c), 0, 0, 6.6);
   return p;
 }
 

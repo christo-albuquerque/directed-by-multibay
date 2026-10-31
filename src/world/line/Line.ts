@@ -3,7 +3,6 @@ import { SurfacePath, type PathSample } from '../../globe/path';
 import { Chart } from '../../globe/surface';
 import type { Zone } from '../../globe/zones';
 import { zoneChart } from '../../globe/zones';
-import { testPose, HEAD_UP, IMPACT_PHASE, SHOT_PHASE } from '../../scene/choreography';
 import { Tv } from '../../scene/Tv';
 import { sfx } from '../../ui/sfx';
 import { FactoryState, type Product } from '../../sim/factory';
@@ -12,6 +11,7 @@ import { BeltSurface, beltSupports, ribbonMesh } from '../belts';
 import { IDLE_LIMBS, LOOKS, walkLimbs, workLimbs, type GrainPose, type LookName, type WorkStyle } from '../crowd';
 import { Folk, Net, type AgentSpec, type Poi, type Pt } from '../folk';
 import { buildPlaza, cratePile } from './plaza';
+import { TestLab, TEST_SECONDS, launcherPrefab } from './testlab';
 import { forkliftBody, forkliftForks, funnel, tubeHatch } from './props';
 import { hasCacheHit, matrixWidth } from '../../sim/runs';
 import { M, Prefab, StaticBatch, glowMat, setGlow } from '../kit';
@@ -31,6 +31,8 @@ interface BulkItem {
   stage: number;
   state: 'move' | 'proc';
   t: number;
+  /** Which test it gets in the testing grounds. */
+  v?: number;
 }
 
 interface Station {
@@ -54,6 +56,8 @@ type ExpressMode = 'inside' | 'travel' | 'reject' | 'loaded';
 interface Express {
   collected?: boolean;
   stamped?: boolean;
+  /** Which test it gets in the testing grounds. */
+  v?: number;
   product: Product;
   s: number;
   stage: number;
@@ -118,6 +122,8 @@ export class Line {
   /** The crowd that lives on this line: workers, haulers, repairers and everyone on a break. */
   folk!: Folk;
   private stamp!: Dyn;
+  private lab!: TestLab;
+  private testCounter = 0;
   private fx?: Env['fx'];
   private funnelPos = new THREE.Vector3();
   private lift?: { path: SurfacePath; body: Dyn; forks: Dyn; crate: Dyn; s: number; dir: 1 | -1; wait: number; h: number; loaded: boolean };
@@ -132,7 +138,6 @@ export class Line {
   private signCtx: CanvasRenderingContext2D | null = null;
   private signTex: THREE.CanvasTexture | null = null;
   private signText = '';
-  private prevPhase = new Map<number, number>();
   private flash = 0;
   /** World position of this line's rescue hut door, for crew to leave from. */
   private hutDoor = new THREE.Vector3();
@@ -195,6 +200,12 @@ export class Line {
       this.craneHeads.push(new Dyn(P.craneHead(), new THREE.Matrix4().multiplyMatrices(test.matrix, new THREE.Matrix4().makeTranslation(lane, 0, -2.4)), this.group));
       this.cannons.push(new Dyn(P.cannonBarrel(), new THREE.Matrix4().multiplyMatrices(test.matrix, new THREE.Matrix4().makeTranslation(Math.sign(lane) * 6, 1.4, 3)), this.group));
     }
+
+    // The testing grounds' crew and their four tests, with a mini rocket launcher on each side.
+    this.lab = new TestLab(test.matrix, this.group);
+    for (const sx of [1, -1]) batch.place(launcherPrefab(), new THREE.Matrix4().multiplyMatrices(test.matrix, new THREE.Matrix4().makeTranslation(sx * 5.8, 0, -7.1)));
+    // The overhead crane is retired: nobody touches the boxes with it any more, grains carry them.
+    for (const c of this.craneHeads) c.mesh.visible = false;
 
     // Dock at the end of the belt.
     const endFlat = this.route.flatAt(this.route.length);
@@ -317,14 +328,17 @@ export class Line {
 
   /** Two wall screens in the arena: metrics normally, the end credits when a run breaks. */
   private buildScreens(): void {
+    // Five screens on the side walls, facing into the room and clear of the belt's exit path.
     const st = this.stations[3];
-    for (const x of [-3.6, 3.6]) {
-      const tv = new Tv(x < 0 ? 'metrics' : 'lab', 3.4);
+    const spots: [number, number, number][] = [[-7.05, 3.0, -3.8], [-7.05, 3.0, 3.8], [7.05, 3.0, -3.8], [7.05, 3.0, 3.8], [7.05, 5.4, 0]];
+    spots.forEach(([x, y, z], i) => {
+      const tv = new Tv(i % 2 === 0 ? 'metrics' : 'lab', 3.2);
       tv.group.matrixAutoUpdate = false;
-      tv.group.matrix.multiplyMatrices(st.matrix, new THREE.Matrix4().makeTranslation(x, 2.3, 6.3).multiply(new THREE.Matrix4().makeRotationY(Math.PI)));
+      // A screen faces +z by default: turn it to face the middle of the room.
+      tv.group.matrix.multiplyMatrices(st.matrix, new THREE.Matrix4().makeTranslation(x, y, z).multiply(new THREE.Matrix4().makeRotationY(x < 0 ? Math.PI / 2 : -Math.PI / 2)));
       this.group.add(tv.group);
       this.tvs.push(tv);
-    }
+    });
   }
 
   private buildSign(): void {
@@ -434,7 +448,6 @@ export class Line {
       const p = st(k, side(k, 5.4), 0);
       return { x: p.x, z: p.z, face: faceBelt(k, side(k, 5.4)), style: 'inspect' as WorkStyle, dur: [6, 12] as [number, number], kind: 'maint' as const };
     });
-    const chores = [...fixes, ...sweeps, ...inspects, ...piles];
 
     const post = (k: number, lx: number, lz: number, style: WorkStyle): Poi => {
       const lat = lx < 0 && k === 3 ? lx : side(k, Math.abs(lx));
@@ -442,7 +455,8 @@ export class Line {
       return { x: p.x, z: p.z, face: faceBelt(k, lat), style, dur: [1, 1], kind: 'post' };
     };
     const add = (look: LookName, p: Poi, extra: Partial<AgentSpec> = {}): void => {
-      folk.add({ look, post: p, errands: [...chores, ...seats], lazy: 0.45, ...extra });
+      // Station crews stay with their room while they work: they only leave for a break at the plaza.
+      folk.add({ look, post: p, errands: seats, lazy: 0.35, ...extra });
     };
     // Crews beside each station, facing the belt.
     for (const [lz, look] of [[-3, 'rice'], [0, 'rice'], [3, 'corn']] as const) add(look, post(0, 5.6, lz, 'load'));
@@ -451,9 +465,8 @@ export class Line {
     add('basmati', post(1, -5.9, 0, 'clipboard'));
     for (const lz of [-3, 0, 3]) add('corn', post(2, 5.8, lz, 'hammer'));
     for (const lz of [-3, 3]) add('corn', post(2, -5.8, lz, 'hammer'));
-    for (const lz of [-4, 0]) add('wheat', post(3, 8.8, lz, 'throw'), { tester: true });
-    for (const lz of [-4, 0]) add('wheat', post(3, -8.8, lz, 'throw'), { tester: true });
-    add('basmati', post(3, 8.8, 5, 'clipboard'));
+    // The supervisor stays inside the testing grounds (the other testers are the lab's own crew).
+    folk.add({ look: 'basmati', post: post(3, 6.0, 6.8, 'clipboard'), errands: [], lazy: 0 });
     for (const lz of [-3, 0, 3]) add('rice', post(4, 5.8, lz, 'load'));
     add('rice', post(4, 5.8, 5, 'load'));
     // Couriers on scooters and millet runners shuttle crates between the piles all day.
@@ -586,7 +599,7 @@ export class Line {
         st.busy = it.t;
         // Crates become boxes halfway through the press.
         if (it.stage === 2 && it.t > DWELL[2] * 0.5) it.kind = 'box';
-        const service = it.stage === 3 ? 5 : DWELL[it.stage];
+        const service = it.stage === 3 ? TEST_SECONDS : DWELL[it.stage];
         if (it.t >= service) {
           it.state = 'move';
           it.t = 0;
@@ -791,6 +804,13 @@ export class Line {
     const near = env.camDist < 320;
     const m = tmpM;
     const dir = tmpV;
+    // The testing grounds: crew, tests and effects run before the items are drawn, so they can move them.
+    const occ = this.stations[3].occupant;
+    const exTest = [...this.ex.values()].find((e) => e.stage === 3 && e.mode === 'inside');
+    if (occ && occ.v === undefined) occ.v = this.testCounter++;
+    if (exTest && exTest.v === undefined) exTest.v = this.testCounter++;
+    this.lab.update(env, [{ t: occ ? occ.t : null, variant: occ?.v ?? 0, fail: false }, { t: exTest ? exTest.t : null, variant: exTest?.v ?? 0, fail: !!exTest && exTest.product.status === 'failed' }], pools);
+    if (this.lab.flash > this.flash) this.flash = this.lab.flash;
     // Ambient items.
     for (const it of this.items) {
       if (it.state === 'proc' && STATIONS[it.stage]?.hidden) continue;
@@ -802,12 +822,12 @@ export class Line {
       this.lanePos(this.bulk, it.s, tmpP, dir);
       this.path(this.bulk, it.s);
       if (ride) tmpP.addScaledVector(tmpS.up, -ride);
-      const st = it.state === 'proc' && it.stage === 3 ? this.stations[3] : null;
       let scaleY = 1;
-      if (st) {
-        const pose = testPose(Math.min(1, it.t / 5));
-        this.applyPose(tmpP, tmpS, pose.dy, pose.dz, 1);
-        scaleY = pose.scaleY;
+      if (it.state === 'proc' && it.stage === 3) {
+        // In the testing grounds the grains move the box: the lab says where it is.
+        const mo = this.lab.motion[0];
+        if (mo.at) tmpP.copy(mo.at);
+        scaleY = mo.scaleY;
       }
       surfaceMatrix(tmpP, tmpS.tangent, tmpS.up, m);
       if (scaleY !== 1) m.scale(new THREE.Vector3(1, scaleY, 1));
@@ -822,13 +842,6 @@ export class Line {
 
   private path(p: SurfacePath, s: number): void {
     p.at(Math.min(Math.max(s, 0), p.length), tmpS);
-  }
-
-  /** Lifts and nudges an item for the test choreography, in the lane's own frame. */
-  private applyPose(pos: THREE.Vector3, sample: PathSample, dy: number, dz: number, side: number): void {
-    pos.addScaledVector(sample.up, dy);
-    tmpV2.crossVectors(sample.up, sample.tangent).normalize();
-    pos.addScaledVector(tmpV2, dz * side);
   }
 
   private expressInside(e: Express): boolean {
@@ -846,11 +859,10 @@ export class Line {
     if (ride) tmpP.addScaledVector(tmpS.up, -ride);
     let scaleY = 1;
     if (e.mode === 'inside' && e.stage === 3) {
-      // The real run is put through its paces in the arena, looping while the real tests run.
-      const phase = (e.t % 9) / 9;
-      const pose = testPose(phase);
-      this.applyPose(tmpP, tmpS, pose.dy, pose.dz, -1);
-      scaleY = pose.scaleY;
+      // The real run is put through its paces by the testers, looping while the real tests run.
+      const mo = this.lab.motion[1];
+      if (mo.at) tmpP.copy(mo.at);
+      scaleY = mo.scaleY;
     }
     if (e.mode === 'reject') {
       tmpV2.crossVectors(tmpS.up, tmpS.tangent).normalize();
@@ -907,46 +919,17 @@ export class Line {
     this.pressHeads[0].set(new THREE.Matrix4().makeTranslation(0, 8.3 - 5.6 * pressCycle(!!bulkIn, bulkIn?.t ?? 0), 0));
     this.pressHeads[1].set(new THREE.Matrix4().makeTranslation(0, 8.3 - 5.6 * pressCycle(!!exIn, exIn?.t ?? 0), 0));
 
-    // Arena crane heads, cannons and the cannon ball.
-    const test = this.stations[3];
-    const bulkTest = test.occupant;
-    const exTest = [...this.ex.values()].find((e) => e.stage === 3 && e.mode === 'inside');
-    const lanes: { phase: number | null; id: number }[] = [
-      { phase: bulkTest ? Math.min(1, bulkTest.t / 5) : null, id: 0 },
-      { phase: exTest ? (exTest.t % 9) / 9 : null, id: 1 },
-    ];
+    // Arena cannons and the cannonball: the lab says when they fire.
     this.ball.mesh.visible = false;
-    for (const lane of lanes) {
-      const pose = lane.phase === null ? null : testPose(lane.phase);
-      const headY = (pose ? pose.headY : HEAD_UP) + 0.5;
-      this.craneHeads[lane.id].set(new THREE.Matrix4().makeTranslation(0, headY - 0.35, 0));
-      const prev = this.prevPhase.get(lane.id) ?? -1;
-      let recoil = 0;
-      if (pose && lane.phase !== null) {
-        if (prev < SHOT_PHASE && lane.phase >= SHOT_PHASE) this.flash = 0.25;
-        if (lane.phase >= SHOT_PHASE && lane.phase < SHOT_PHASE + 0.08) recoil = 1 - (lane.phase - SHOT_PHASE) / 0.08;
-        if (pose.ballT !== null && lane.id === 1) {
-          // Visible cannonball flight for the real run's cell.
-          const from = tmpP.set(6 * -1, 1.4 + 1.2, 3).applyMatrix4(test.matrix).clone();
-          const to = tmpV.set(-LANE_OFFSET, 1.3, 0).applyMatrix4(test.matrix).clone();
-          const b = from.lerp(to, pose.ballT);
-          b.addScaledVector(b.clone().normalize(), Math.sin(pose.ballT * Math.PI) * 0.8);
-          this.ball.mesh.visible = true;
-          this.ball.mesh.matrix.makeTranslation(b.x, b.y, b.z);
-        }
-        if (prev < IMPACT_PHASE && lane.phase >= IMPACT_PHASE && env.camDist < 200) {
-          const at = tmpP.set(lane.id === 0 ? LANE_OFFSET : -LANE_OFFSET, 1.4, 0).applyMatrix4(test.matrix);
-          const up = tmpV.copy(at).normalize();
-          env.fx.burst(at.clone(), 10, 3, 2, up, { color: 0xe8dcc0, size0: 0.3, size1: 0.9, life: 0.7, alpha: 0.9, gravity: -3 });
-        }
-        this.prevPhase.set(lane.id, lane.phase);
-      } else {
-        this.prevPhase.set(lane.id, -1);
+    for (const lane of [0, 1]) {
+      const c = this.lab.cannon[lane];
+      if (c.ballAt) {
+        this.ball.mesh.visible = true;
+        this.ball.mesh.matrix.makeTranslation(c.ballAt.x, c.ballAt.y, c.ballAt.z);
       }
-      const sgn = lane.id === 0 ? 1 : -1;
-      this.cannons[lane.id].set(new THREE.Matrix4().makeTranslation(0, 0, -recoil * 0.4).multiply(new THREE.Matrix4().makeRotationZ(sgn * 1.3)).multiply(new THREE.Matrix4().makeRotationX(-0.3)));
-    }
-    void t;
+      const sgn = lane === 0 ? 1 : -1;
+      this.cannons[lane].set(new THREE.Matrix4().makeTranslation(0, 0, -c.recoil * 0.4).multiply(new THREE.Matrix4().makeRotationZ(sgn * 1.3)).multiply(new THREE.Matrix4().makeRotationX(-0.3)));
+    }    void t;
   }
 
   private drawCrowd(env: Env, pools: Pools): void {

@@ -32,7 +32,7 @@ export const LOOKS = {
 export type LookName = keyof typeof LOOKS;
 
 /** Things grains hold. Right/left hand props hang off the arm; body props sit on the torso. */
-export type HandProp = 'chopsticks' | 'cup' | 'extinguisher' | 'board' | 'broom' | 'wrench' | 'magnifier' | 'duster' | 'glow' | 'flag';
+export type HandProp = 'rifle' | 'chopsticks' | 'cup' | 'extinguisher' | 'board' | 'broom' | 'wrench' | 'magnifier' | 'duster' | 'glow' | 'flag';
 export type BodyProp = 'paper' | 'bubble' | 'stretcher';
 
 /** One grain to draw this frame, in surface-relative terms. */
@@ -152,6 +152,8 @@ function outfitGeometry(o: Outfit): THREE.BufferGeometry {
 /** Handheld props: the origin is the grain's hand, +y up along the arm, +z forward. */
 function propGeometry(p: HandProp | BodyProp): THREE.BufferGeometry {
   switch (p) {
+    case 'rifle':
+      return painted([[box(0.09, 0.12, 0.9, 0, 0.02, 0.4), 0x3a3f4b], [box(0.1, 0.22, 0.2, 0, -0.1, 0.0), 0x6b4a2f], [box(0.05, 0.05, 0.5, 0, 0.09, 0.75), 0x15171c]]);
     case 'chopsticks':
       return painted([[rotX(cylG(0.012, 0.38, -0.02, 0.0, 0.1, 5), 1.1), 0x8a5a2b], [rotX(cylG(0.012, 0.38, 0.02, 0.0, 0.1, 5), 1.1), 0x8a5a2b], [box(0.08, 0.04, 0.08, 0, 0.12, 0.28), 0xe9c46a]]);
     case 'cup':
@@ -279,7 +281,7 @@ export class CrowdRenderer {
     this.all = [this.body, this.hat, this.armL, this.armR, this.legL, this.legR, this.eyes];
     const per = Math.min(capacity, 700);
     for (const o of ['overalls', 'husk', 'awn', 'sprout', 'goggles', 'cross', 'hazmat'] as Outfit[]) this.addBits(this.outfits, o, outfitGeometry(o), per);
-    for (const p of ['chopsticks', 'cup', 'extinguisher', 'board', 'broom', 'wrench', 'magnifier', 'duster', 'glow', 'flag', 'paper', 'bubble', 'stretcher'] as (HandProp | BodyProp)[]) this.addBits(this.props, p, propGeometry(p), 160);
+    for (const p of ['rifle', 'chopsticks', 'cup', 'extinguisher', 'board', 'broom', 'wrench', 'magnifier', 'duster', 'glow', 'flag', 'paper', 'bubble', 'stretcher'] as (HandProp | BodyProp)[]) this.addBits(this.props, p, propGeometry(p), 160);
     const crateGeo = painted([[box(0.34, 0.3, 0.34, 0, 0, 0), 0xffffff], [box(0.36, 0.05, 0.36, 0, 0.1, 0), 0x8a6236]]);
     this.crate = new Bits(crateGeo, 600, true);
     this.scooter = new Bits(SCOOTER, 120);

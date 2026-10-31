@@ -27,6 +27,7 @@ The workforce and population: tiny procedural grains with jobs and lives. They a
 - Grains never walk in perfectly straight lines (weave) and never teleport (they walk to posts, seats and piles).
 - Rescue crew: 2 hazmat + 2 medic per line, housed in the hut, with extinguishers/stretchers.
 - Alarm on rising activity sends off-duty grains running to their posts.
+- **Room isolation:** station crews only leave their room for a break at the plaza and never roam as chores; the testing grounds' crew live inside the room (see 10). Walks end with a straight-line approach (a grain can never circle its target and spin on the spot) and a walk that lasts over 40 s snaps to its goal.
 - Cheering on launch; gasp then spray on failure at test.
 
 ## Extension points
@@ -36,3 +37,4 @@ The workforce and population: tiny procedural grains with jobs and lives. They a
 ## Known gaps
 - Port crowd (loaders, drivers) and farm/mine crews use `Ambient`, not stations.
 - Gum bubbles only at plazas and markets.
+- Props now include a rifle (testing grounds).

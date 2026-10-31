@@ -267,11 +267,12 @@ export class GlobeControls {
     const horiz = Math.sin(this.tilt) * this.dist;
     const vert = Math.cos(this.tilt) * this.dist;
     this.camera.position.copy(this.focus).addScaledVector(this.dir, vert).addScaledVector(this.fwd, horiz);
-    // Whole-planet views would otherwise lean the horizon; keep "north" up there (not at the poles, where it is undefined).
-    this.camera.up.copy(this.dir);
-    if (this.dist > 300 && Math.abs(this.dir.y) < 0.97) {
-      this.camera.up.lerp(tmpA.set(0, 1, 0), THREE.MathUtils.smoothstep(this.dist, 300, 460)).normalize();
-    }
+    // Screen-up is built from the carried frame, in the plane of the view: straight down it is "away from the viewer",
+    // looking across it is the surface normal. Using the surface normal as "up" (as before) is parallel to the view
+    // when the tilt reaches 0, and lookAt then picks a random roll, which spun the globe wildly on the next drag.
+    const ct = Math.cos(this.tilt);
+    const st = Math.sin(this.tilt);
+    this.camera.up.copy(this.dir).multiplyScalar(st).addScaledVector(this.fwd, -ct).normalize();
     this.camera.lookAt(this.focus);
   }
 }

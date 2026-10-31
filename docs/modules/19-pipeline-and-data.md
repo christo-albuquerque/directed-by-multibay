@@ -25,4 +25,4 @@ Turns real (or demo) GitHub Actions runs into products travelling through the fa
 - Max 6 repos; config needs no code change.
 
 ## Known gaps
-- `status.json` push model; Demo Panel lacks an activity slider, a matrix/cache button and a weather button.
+- `status.json` push model; the Demo Panel has no activity slider (it does have Matrix build, Cache hit run and Weather buttons).

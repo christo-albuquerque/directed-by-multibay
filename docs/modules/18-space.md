@@ -13,10 +13,12 @@ Everything above the ground: stars, atmosphere, moon, ring planet, clouds, satel
 - `globe/sky.ts`: star field, atmosphere shader, moon, ring planet, cloud layers (fade by camera distance).
 - `globe/GlobeWorld.ts`: sun, moon and hemisphere lights; `DAY_SECONDS = 900`; `nightAt`; bloom; manual frame timing.
 - `city/Skyways.ts`: satellites on tilted orbits at R+210 to R+400.
-- `world/weather.ts` `Weather`: schedules a spell every 110–350 s (45% drizzle, 35% rain, 20% storm, 40–110 s long); level eases in and out; dims sun (−60%) and hemisphere light (−30%); rain streaks around the camera focus; storms add two-blink lightning and delayed thunder (`sfx.rumble`); `sfx.rainOn`. `planet.weather.begin('storm', seconds)` forces a spell for testing.
+- **Demo Panel weather button** cycles six modes (`world/weatherModes.ts`): Dynamic (the random schedule), Clear, Rainy, Snow, Overcast, Off. Dynamic also includes snow and overcast spells; the others hold one state until changed.
+- `world/weather.ts` `Weather`: in Dynamic mode schedules a spell every 110–350 s (30% drizzle, 25% rain, 15% storm, 15% overcast, 15% snow, 40–110 s long); level eases in and out; dims sun (−60%) and hemisphere light (−30%); rain streaks around the camera focus; storms add two-blink lightning and delayed thunder (`sfx.rumble`); `sfx.rainOn`. `planet.weather.begin('storm', seconds)` forces a spell for testing.
 
 ## Invariants
-- Weather never reads build results.
+- Weather never reads build results; `dynamic` is the default.
+- Snow never plays the rain sound.
 - Weather and day/night keep running when idle.
 - Reduced motion suppresses lightning flashes.
 
@@ -24,4 +26,4 @@ Everything above the ground: stars, atmosphere, moon, ring planet, clouds, satel
 - Wind-blown clouds, snow near the poles, aurora; keep them independent of the factory state.
 
 ## Known gaps
-- Demo Panel has no "weather" button yet; no per-region weather (it follows the camera).
+- No per-region weather (it follows the camera); overcast has no visible clouds beyond the dimming.

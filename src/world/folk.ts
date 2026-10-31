@@ -162,6 +162,8 @@ interface Agent extends AgentSpec {
   rush: number;
   spray: number;
   walkPhase: number;
+  /** Seconds spent on the current walk. */
+  walkTime: number;
   jitter: number;
 }
 
@@ -231,6 +233,7 @@ export class Folk {
       rush: 0,
       spray: 0,
       walkPhase: Math.random() * 6,
+      walkTime: 0,
       jitter: Math.random() * 6,
     });
   }
@@ -290,6 +293,7 @@ export class Folk {
   private send(a: Agent, poi: Poi): void {
     a.goal = poi;
     a.way = this.net.route({ x: a.x, z: a.z }, poi);
+    a.walkTime = 0;
     a.mode = 'walk';
   }
 
@@ -365,15 +369,24 @@ export class Folk {
           // Steer toward the waypoint with a lazy sideways weave so no one marches in a ruler-straight line.
           const wobble = Math.sin(env.elapsed * 0.9 + a.jitter) * Math.min(0.55, d * 0.08);
           const want = Math.atan2(dx, dz) + wobble;
-          const turn = angleDelta(a.yaw, want);
-          a.yaw += Math.sign(turn) * Math.min(Math.abs(turn), dt * 4.2);
+          const near = d < 2.4;
+          const turn = angleDelta(a.yaw, near ? Math.atan2(dx, dz) : want);
+          a.yaw += Math.sign(turn) * Math.min(Math.abs(turn), dt * (near ? 14 : 4.2));
           const step = Math.min(d, speed * dt);
-          a.x += Math.sin(a.yaw) * step;
-          a.z += Math.cos(a.yaw) * step;
-          if (last && d < 1.5) {
-            // Home in exactly on the spot.
-            a.x += (next.x - a.x) * Math.min(1, dt * 6);
-            a.z += (next.z - a.z) * Math.min(1, dt * 6);
+          if (near) {
+            // The last stretch goes straight at the target, so a grain can never circle it or spin on the spot.
+            a.x += (dx / d) * step;
+            a.z += (dz / d) * step;
+          } else {
+            a.x += Math.sin(a.yaw) * step;
+            a.z += Math.cos(a.yaw) * step;
+          }
+          // A grain that has been walking far too long is snapped to its goal instead of wandering forever.
+          a.walkTime += dt;
+          if (a.walkTime > 40) {
+            a.x = next.x;
+            a.z = next.z;
+            a.way.length = 0;
           }
           a.walkPhase += dt * speed * 5.2;
           break;
