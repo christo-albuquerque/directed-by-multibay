@@ -10,6 +10,7 @@ Small settlements scattered over the whole planet so no land is empty.
 
 ## Current implementation
 - `src/world/scatter.ts` (villages block): up to 72 villages placed by seeded random (`rng(20250611)`, so the planet is the same every visit), at least 12 units from any district, not in a pit, on near-flat ground.
+- **Alpine villages** (near mountains, where ground within 22 units rises above 3.2): igloos with entrance tunnels and snow-capped log cottages with chimneys instead of ordinary houses.
 - Each village: 7–13 houses (4 colour variants with lit windows) or, for a third of them, an urban cluster with 4–14 high neon-window blocks; water tower or silo; a small plaza with 3 stalls and lamps.
 - All buildings are baked into the static batch; keep-out against zones, corridors (belts/roads/feeders) and plazas (`inDistrict`).
 - The equatorial ring road and branch roads link villages to the districts.

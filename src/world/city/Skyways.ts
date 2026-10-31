@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { SurfacePath, type PathSample } from '../../globe/path';
 import { R, lonLatDir } from '../../globe/surface';
 import { M, Prefab, glowMat } from '../kit';
-import { InstancePool, surfaceMatrix } from '../pools';
-import { courierDrone, hoverCar } from '../vehicles';
+import { InstancePool, LitPool, surfaceMatrix } from '../pools';
+import { courierDrone, hoverCar, hoverCarLights } from '../vehicles';
 
 interface Lane {
   path: SurfacePath;
@@ -18,6 +18,7 @@ interface Vehicle {
   kind: number;
   /** Small sideways offset so cars in a lane do not stack in one line. */
   lateral: number;
+  pos: THREE.Vector3;
 }
 
 const sample: PathSample = { pos: new THREE.Vector3(), tangent: new THREE.Vector3(), up: new THREE.Vector3() };
@@ -42,10 +43,10 @@ export class Skyways {
   private lanes: Lane[] = [];
   private cars: Vehicle[] = [];
   private drones: Vehicle[] = [];
-  private carPools: InstancePool[] = [
-    new InstancePool(hoverCar('city', 0xe94b8b, 0xff2d95), 40, false, false),
-    new InstancePool(hoverCar('city', 0x3b82f6, 0x39ffe0), 40, false, false),
-    new InstancePool(hoverCar('city', 0xf5b73a, 0xffb02e), 40, false, false),
+  private carPools: LitPool[] = [
+    new LitPool(hoverCar('city', 0xe94b8b, 0xff2d95), hoverCarLights(), 40, false, false),
+    new LitPool(hoverCar('city', 0x3b82f6, 0x39ffe0), hoverCarLights(), 40, false, false),
+    new LitPool(hoverCar('city', 0xf5b73a, 0xffb02e), hoverCarLights(), 40, false, false),
   ];
   private dronePool = new InstancePool(courierDrone('city'), 40, false, false);
   private sats = new InstancePool(satellitePrefab(), 18, false, false);
@@ -61,13 +62,13 @@ export class Skyways {
     L([[0, -8], [30, 0], [58, 14], [74, 30], [58, 16], [30, -2]], 40, 8, 26);
     L([[0, -8], [-40, -2], [-66, 8], [-60, -22], [-30, -36], [10, -34], [50, -30], [66, -14], [40, 6]], 48, 9, 28);
     this.lanes.forEach((lane, li) => {
-      for (let i = 0; i < lane.count; i++) this.cars.push({ lane: li, s: (i / lane.count) * lane.path.length, speed: lane.speed * (0.85 + Math.random() * 0.3), kind: (i + li) % 3, lateral: (Math.random() - 0.5) * 2.4 });
+      for (let i = 0; i < lane.count; i++) this.cars.push({ lane: li, s: (i / lane.count) * lane.path.length, speed: lane.speed * (0.85 + Math.random() * 0.3), kind: (i + li) % 3, lateral: (Math.random() - 0.5) * 2.4, pos: new THREE.Vector3() });
     });
     // Package drones on slower, lower loops between the market and the factories.
     const dl = [loop([[0, -8], [-18, 6], [-24, 14], [-12, 4]], 22), loop([[0, -8], [18, 6], [24, 14], [12, 4]], 24), loop([[0, -8], [-26, 26], [-8, 40], [10, 26]], 28), loop([[0, -8], [26, 26], [8, 40], [-10, 26]], 31)];
     dl.forEach((path, li) => {
       this.lanes.push({ path, count: 0, speed: 0 });
-      for (let i = 0; i < 6; i++) this.drones.push({ lane: this.lanes.length - 1, s: (i / 6) * path.length, speed: 9 + Math.random() * 4, kind: li, lateral: 0 });
+      for (let i = 0; i < 6; i++) this.drones.push({ lane: this.lanes.length - 1, s: (i / 6) * path.length, speed: 9 + Math.random() * 4, kind: li, lateral: 0, pos: new THREE.Vector3() });
     });
     // Satellites on tilted orbits well above the clouds.
     for (let i = 0; i < 14; i++) {
@@ -76,11 +77,17 @@ export class Skyways {
     }
   }
 
-  get meshes(): THREE.Object3D[] {
-    return [...this.carPools.map((p) => p.mesh), this.dronePool.mesh, this.sats.mesh];
+  /** Hover cars and drones, for clicking to follow. */
+  followables(): { pos: THREE.Vector3; follow: () => THREE.Vector3 | null }[] {
+    return [...this.cars, ...this.drones].map((v) => ({ pos: v.pos, follow: () => v.pos.clone() }));
   }
 
-  update(dt: number, elapsed: number, camDist: number): void {
+  get meshes(): THREE.Object3D[] {
+    return [...this.carPools.flatMap((p) => p.meshes), this.dronePool.mesh, this.sats.mesh];
+  }
+
+  update(dt: number, elapsed: number, camDist: number, night = 0): void {
+    for (const p of this.carPools) p.setNight(night);
     for (const p of this.carPools) p.begin();
     this.dronePool.begin();
     this.sats.begin();
@@ -92,6 +99,7 @@ export class Skyways {
       v3.crossVectors(sample.up, sample.tangent).normalize();
       sample.pos.addScaledVector(v3, c.lateral);
       surfaceMatrix(sample.pos, sample.tangent, sample.up, m4);
+      c.pos.copy(sample.pos);
       this.carPools[c.kind].push(m4);
     }
     for (const d of this.drones) {
@@ -100,6 +108,7 @@ export class Skyways {
       lane.path.at(d.s, sample);
       sample.pos.addScaledVector(sample.up, Math.sin(elapsed * 1.7 + d.s) * 0.4);
       surfaceMatrix(sample.pos, sample.tangent, sample.up, m4);
+      d.pos.copy(sample.pos);
       this.dronePool.push(m4);
     }
     // Satellites: rotate a point on a circle about each orbit's axis.

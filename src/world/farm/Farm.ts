@@ -105,8 +105,10 @@ export class Farm {
     }
 
     // Irrigation canals between the fields, and service roads.
-    batch.placeOn(new Prefab().box(2, 0.1, 90, M(0x2f6fb5), 0, 0, 0), c, 0, 2, GROUND);
-    batch.placeOn(new Prefab().box(84, 0.1, 2, M(0x2f6fb5), 0, 0, 0), c, 0, 2, GROUND);
+    // Canals are bent slabs that follow the planet's curve (a flat 90-unit box floats several units above the ground at its ends).
+    const water = M(0x2f6fb5, { side: THREE.DoubleSide });
+    batch.addGeometry(water, bentSlab(c, 0, 2, 2, 92, GROUND + 0.06, 1.5, 4));
+    batch.addGeometry(water, bentSlab(c, 0, 2, 86, 2, GROUND + 0.06, 1.5, 4));
     const road = SurfacePath.through(c, [[-40, 2], [-20, 2], [0, 2], [20, 2], [40, 2]], 0.2, false, 2);
     const road2 = SurfacePath.through(c, [[0, -50], [0, -25], [0, 2], [0, 25], [0, 50]], 0.2, false, 2);
     const asphalt = new THREE.MeshStandardMaterial({ color: 0x3b3f48, roughness: 0.95, side: THREE.DoubleSide, flatShading: true });

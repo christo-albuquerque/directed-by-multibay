@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MAX_LINES, ZONES } from './globe/zones';
 import { LOOKS } from './world/crowd';
 import { APRON, STATIONS, STATION_GAP } from './world/line/layout';
+import { SHOP_KINDS } from './world/city/shops';
 import { TEST_KINDS, TestLab } from './world/line/testlab';
 import { WEATHER_MODES } from './world/weatherModes';
 
@@ -64,5 +65,12 @@ describe('invariants named in the module files still hold in code', () => {
 
   it('weather (18): the Demo Panel can pick every documented state', () => {
     expect(WEATHER_MODES).toEqual(['dynamic', 'clear', 'rain', 'snow', 'overcast', 'off']);
+  });
+
+  it('markets (16): the city has restaurants and a barber among its shops', () => {
+    const kinds = new Set(SHOP_KINDS.map((s) => s.kind));
+    expect(kinds.has('restaurant')).toBe(true);
+    expect(kinds.has('barber')).toBe(true);
+    expect(SHOP_KINDS.length).toBeGreaterThanOrEqual(8);
   });
 });

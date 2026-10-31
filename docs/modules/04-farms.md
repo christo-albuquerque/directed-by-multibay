@@ -12,6 +12,7 @@ Where raw material (crop crates) comes from. A visible loop of seed, grow, harve
 ## Current implementation
 - `src/world/farm/Farm.ts`; zone `farm` (lon −66, lat 8, 86 × 104). Sits straight on the terrain (no pad), with its own roads (`ribbonMesh`).
 - 4 fields with per-row state machines (sprout, grow, ripe, harvested, replant); crop tint runs green to gold on instanced plants.
+- Irrigation canals are `bentSlab` strips that follow the ground (they used to be flat 90-unit boxes that floated in the air).
 - Planters and combines (`vehicles.ts`) run the rows, with dust; domes, silos, windmills as scenery.
 - Farmhands: `Ambient` grains on the field track loop with chores (inspect, clipboard, coffee, wave, repair), some carrying boxes, some on scooters, all clickable.
 - Output: crop trucks (`supply.ts`) load unseen inside a shed at the farm's south end (chart (0, 52)) and drive to the depots of the west column lines (07). No belts leave the farm.

@@ -6,6 +6,7 @@ import { ZONES, zoneWeight } from '../globe/zones';
 import { M, Prefab, StaticBatch, glowMat } from './kit';
 import { nearCorridor, registerCorridor } from './corridors';
 import { Ambient } from './ambient';
+import { SHOP_KINDS, shopPrefab } from './city/shops';
 import type { LookName } from './crowd';
 import { ROADS } from './roads';
 import { colouredGeometry, surfaceMatrix } from './pools';
@@ -64,6 +65,29 @@ function block(w: number, h: number, wall: number, neon: number): Prefab {
   }
   p.box(0.15, 1.6, 0.15, M(0x555b66), w * 0.3, h + 0.4, w * 0.2);
   return p;
+}
+/** An ice igloo with a low entrance tunnel and a warm window: the villages high in the mountains. */
+function igloo(): Prefab {
+  const ice = M(0xe6f1fb);
+  return new Prefab()
+    .sphere(2.4, ice, 0, 0, 0, 0.75, 9)
+    .box(1.5, 1.3, 1.9, ice, 0, 0, 2.4)
+    .box(0.95, 0.95, 0.08, M(0x1b2433), 0, 0, 3.36)
+    .sphere(0.28, glowMat('wild', 0xffd27a, 0.3, 1.5), 1.4, 1.1, 1.6, 1, 6)
+    .box(4.9, 0.05, 0.05, M(0xbcd3e6), 0, 0.7, 0)
+    .box(4.1, 0.05, 0.05, M(0xbcd3e6), 0, 1.2, 0);
+}
+
+/** A small mountain cottage: log walls, a steep snow-capped roof, a stone chimney and a lit window. */
+function cabin(): Prefab {
+  return new Prefab()
+    .box(3.6, 2.2, 3.2, M(0x7a4f2b))
+    .box(3.8, 0.12, 0.12, M(0x5a3a20), 0, 0.7, 1.64).box(3.8, 0.12, 0.12, M(0x5a3a20), 0, 1.4, 1.64)
+    .cone(3.1, 2.0, M(0x4a3a2f), 0, 2.2, 0, 4)
+    .cone(2.5, 0.85, M(0xf4f8fc), 0, 3.35, 0, 4)
+    .box(0.6, 1.8, 0.6, M(0x8a8f99), 1.1, 2.2, -0.6)
+    .box(0.9, 1.3, 0.1, M(0x2b1d12), -0.7, 0, 1.64)
+    .box(0.9, 0.7, 0.1, glowMat('wild', 0xffd27a, 0.3, 1.6), 0.9, 0.9, 1.64);
 }
 const lamp = (): Prefab => new Prefab().cyl(0.07, 0.1, 3.4, M(0x3c4350)).box(0.9, 0.1, 0.1, M(0x3c4350), 0.4, 3.4, 0).sphere(0.28, glowMat('wild', 0xfff0c8, 0.5, 3.2), 0.85, 3.3, 0, 0.7, 6);
 const stall = (c: number): Prefab =>
@@ -249,6 +273,75 @@ export class Scatter {
     const stalls = [stall(0xff4fa3), stall(0x39ffe0), stall(0xffb02e)];
     const tower = waterTower();
     const grain = silo();
+    const folk: LookName[] = ['rice', 'corn', 'millet', 'quinoa', 'wheat', 'basmati'];
+    const iglooPrefab = igloo();
+    const cabinPrefab = cabin();
+    const upAt = new THREE.Vector3();
+    /** A matrix for something at direction d turned to face `towards`, with a little random turn. */
+    const facing = (d: THREE.Vector3, towards: THREE.Vector3, lift: number, jitter: number, out = new THREE.Matrix4()): THREE.Matrix4 => {
+      upAt.copy(d);
+      const pos = d.clone().multiplyScalar(R + reliefAt(d) + lift);
+      const f = towards.clone().sub(d);
+      f.addScaledVector(upAt, -f.dot(upAt)).normalize().applyAxisAngle(upAt, (rand() - 0.5) * 2 * jitter);
+      return surfaceMatrix(pos, f, upAt, out, 1);
+    };
+    const around = (centre: THREE.Vector3, east: THREE.Vector3, south: THREE.Vector3, ang: number, rad: number): THREE.Vector3 =>
+      centre.clone().addScaledVector(east, (Math.cos(ang) * rad) / R).addScaledVector(south, (Math.sin(ang) * rad) / R).normalize();
+    const heightAround = (centre: THREE.Vector3, east: THREE.Vector3, south: THREE.Vector3, rad: number): number => {
+      let top = reliefAt(centre);
+      for (let k = 0; k < 8; k++) top = Math.max(top, reliefAt(around(centre, east, south, (k / 8) * Math.PI * 2, rad)));
+      return top;
+    };
+    const frameOf = (centre: THREE.Vector3): { east: THREE.Vector3; south: THREE.Vector3 } => {
+      const east = new THREE.Vector3().crossVectors(centre, north).normalize();
+      if (east.lengthSq() < 0.1) east.set(1, 0, 0);
+      return { east, south: new THREE.Vector3().crossVectors(centre, east).normalize() };
+    };
+    const villagers = (centre: THREE.Vector3, east: THREE.Vector3, south: THREE.Vector3, radius: number, count: number, seed: number): void => {
+      const ring: THREE.Vector3[] = [];
+      for (let k = 0; k < 12; k++) {
+        const d = around(centre, east, south, (k / 12) * Math.PI * 2, radius);
+        ring.push(d.multiplyScalar(R + reliefAt(d) + 0.3));
+      }
+      const loop = SurfacePath.through3D([...ring, ring[0], ring[1]], 0.8);
+      for (let k = 0; k < count; k++) {
+        this.ambient.add({ path: loop, s: (k / count) * loop.length, speed: 0.9 + rand() * 0.8, look: folk[(seed + k) % folk.length], carry: k === 1 && rand() < 0.5, chores: ['coffee', 'news', 'gum', 'wave', 'inspect', 'sip'], dir: k % 3 === 2 ? -1 : 1 });
+      }
+    };
+
+    // Cities: a handful of real towns spread well apart across the planet, each with a market square of stalls set out at
+    // natural angles, shops of every kind (restaurants, a barber, a tailor ...) and low and mid-rise blocks round about.
+    const citySites: THREE.Vector3[] = [];
+    for (let tries = 0; tries < 2500 && citySites.length < 7; tries++) {
+      dir.set(rand() * 2 - 1, rand() * 1.8 - 0.9, rand() * 2 - 1).normalize();
+      if (citySites.some((s) => s.angleTo(dir) * R < 90)) continue;
+      if (inDistrict(dir, 34)) continue;
+      const g0 = reliefAt(dir);
+      const { east, south } = frameOf(dir);
+      if (g0 < -1.9 || heightAround(dir, east, south, 32) > 2.5) continue;
+      const centre = dir.clone();
+      citySites.push(centre);
+      avoid.push({ dir: centre, r: 36 });
+      const frame = new THREE.Matrix4();
+      for (let k = 0; k < 28; k++) {
+        const d = around(centre, east, south, rand() * Math.PI * 2, 13 + rand() * 20);
+        if (inDistrict(d, 2) || reliefAt(d) < -1.9) continue;
+        if (rand() < 0.22) {
+          const spec = SHOP_KINDS[k % SHOP_KINDS.length];
+          batch.place(shopPrefab('wild', spec.kind, spec.wall, spec.neon, 7 + rand() * 2, 5.5 + rand(), 4 + rand() * 1.6), facing(d, centre, 0.2, 0.5, frame));
+        } else {
+          batch.place(blocks[k & 3], facing(d, centre, 0.2, 0.6, frame));
+        }
+      }
+      // The market square: stalls in loose arcs, none turned quite the same.
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2 + rand() * 0.4;
+        batch.place(stalls[k % 3], facing(around(centre, east, south, a, 6 + rand() * 4), centre, 0.2, 0.7, frame));
+      }
+      for (let k = 0; k < 4; k++) lamps.items.push(placeAt(around(centre, east, south, (k / 4) * Math.PI * 2 + 0.4, 3), 1, 0.2));
+      villagers(centre, east, south, 7.5, 5, citySites.length);
+    }
+
     let villages = 0;
     for (let tries = 0; tries < 900 && villages < 72; tries++) {
       dir.set(rand() * 2 - 1, rand() * 1.6 - 0.8, rand() * 2 - 1).normalize();
@@ -257,7 +350,10 @@ export class Scatter {
       const ground = reliefAt(centre);
       if (ground < -1.9) continue;
       villages++;
-      const urban = rand() < 0.35;
+      const vf = frameOf(centre);
+      // High in the mountains the houses are igloos and log cottages.
+      const alpine = heightAround(centre, vf.east, vf.south, 22) > 3.2;
+      const urban = !alpine && rand() < 0.3;
       const count = urban ? 8 + Math.floor(rand() * 6) : 7 + Math.floor(rand() * 7);
       const frame = new THREE.Matrix4();
       const east = new THREE.Vector3().crossVectors(centre, north).normalize();
@@ -270,7 +366,7 @@ export class Scatter {
         if (inDistrict(d, 2)) continue;
         frame.copy(placeAt(d, 1, 0.2));
         const p = rand();
-        const prefab = urban && p < 0.55 ? blocks[k & 3] : p < 0.9 ? houses[k & 3] : p < 0.95 ? tower : grain;
+        const prefab = alpine ? (p < 0.5 ? iglooPrefab : cabinPrefab) : urban && p < 0.55 ? blocks[k & 3] : p < 0.9 ? houses[k & 3] : p < 0.95 ? tower : grain;
         batch.place(prefab, frame);
       }
       // A little plaza with stalls and lamps.

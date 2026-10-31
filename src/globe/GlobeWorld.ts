@@ -149,6 +149,11 @@ export class GlobeWorld {
   }
 
   /** For screenshots and testing: jump the sun to a given phase (0 = noon over the default view). */
+  /** The sun's angle round the planet (radians); it advances all day and night unless the time is locked. */
+  get phase(): number {
+    return this.dayPhase;
+  }
+
   setDayPhase(phase: number): void {
     this.dayPhase = phase;
   }

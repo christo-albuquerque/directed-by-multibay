@@ -7,10 +7,10 @@ import { LOOKS, walkLimbs, type GrainPose } from './crowd';
 import { M, Prefab, StaticBatch, glowMat } from './kit';
 import type { Line } from './line/Line';
 import { hood } from './line/prefabs';
-import { InstancePool, surfaceMatrix } from './pools';
+import { InstancePool, LitPool, surfaceMatrix } from './pools';
 import { roadGeometry } from './scatter';
 import type { Env, Pools } from './types';
-import { deliveryTruck } from './vehicles';
+import { deliveryTruck, deliveryTruckLights } from './vehicles';
 
 const H = 0.37;
 const LANE = 1.4;
@@ -53,6 +53,7 @@ interface Run {
   t: number;
   crates: number;
   porters: Porter[];
+  pos: THREE.Vector3;
 }
 
 const sample = { pos: new THREE.Vector3(), tangent: new THREE.Vector3(), up: new THREE.Vector3() };
@@ -69,7 +70,7 @@ const smooth = (t: number): number => THREE.MathUtils.smoothstep(t, 0, 1);
  */
 export class Supply {
   readonly meshes: THREE.Object3D[];
-  private trucks = new InstancePool(deliveryTruck(), 24, true, true);
+  private trucks = new LitPool(deliveryTruck(), deliveryTruckLights(), 24, true, true);
   private trolleys = new InstancePool(trolleyPrefab(), 24, false, false);
   private runs: Run[] = [];
   private farmBay: THREE.Vector3;
@@ -112,9 +113,14 @@ export class Supply {
       batch.addGeometry(asphalt, roadGeometry(path, 1.8));
       registerCorridor(path, 3.4);
       const phase: Phase = 'load';
-      this.runs.push({ line, kind, path, phase, s: 0, t: -(i * 6.5), crates: 0, porters: [{ mode: 'idle', t: 0, delay: 0 }, { mode: 'idle', t: 0, delay: 3 }] });
+      this.runs.push({ line, kind, path, phase, s: 0, t: -(i * 6.5), crates: 0, porters: [{ mode: 'idle', t: 0, delay: 0 }, { mode: 'idle', t: 0, delay: 3 }], pos: new THREE.Vector3() });
     }
-    this.meshes = [this.trucks.mesh, this.trolleys.mesh];
+    this.meshes = [...this.trucks.meshes, this.trolleys.mesh];
+  }
+
+  /** Supply trucks that are out on the road, for clicking to follow. */
+  followables(): { pos: THREE.Vector3; follow: () => THREE.Vector3 | null }[] {
+    return this.runs.filter((r) => r.phase !== 'load').map((r) => ({ pos: r.pos, follow: () => (r.phase === 'load' ? null : r.pos.clone()) }));
   }
 
   /** Where the farm's shed is, for anything that wants to point at it. */
@@ -122,7 +128,8 @@ export class Supply {
     return this.farmBay;
   }
 
-  update(env: Env): void {
+  update(env: Env, night = 0): void {
+    this.trucks.setNight(night);
     const dt = env.dt;
     for (const r of this.runs) {
       const L = r.path.length;
@@ -224,6 +231,7 @@ export class Supply {
         dirV.applyAxisAngle(sample.up, Math.PI * u);
       }
       surfaceMatrix(v3, dirV, sample.up, m4);
+      r.pos.copy(v3);
       this.trucks.push(m4, r.kind === 'crop' ? 0xffffff : 0xb9c2d4);
       // Crates on the bed.
       const slots: [number, number, number][] = [[-0.55, 1.75, -1.1], [0.55, 1.75, -1.1], [0, 1.75, -2.5]];

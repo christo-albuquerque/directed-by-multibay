@@ -6,6 +6,7 @@ import type { Product } from '../sim/factory';
 import { motion } from '../ui/motion';
 import { CrowdRenderer } from './crowd';
 import { Farm } from './farm/Farm';
+import { Power } from './power/Power';
 import { Supply, trolleyPrefab } from './supply';
 import { Mine } from './mine/Mine';
 import { Port } from './port/Port';
@@ -52,6 +53,8 @@ export class PlanetWorld {
   private portZone = ZONES.find((z) => z.kind === 'port')!;
   private cityZone = ZONES.find((z) => z.kind === 'city')!;
   private supply!: Supply;
+  private power!: Power;
+  private powerZone = ZONES.find((z) => z.kind === 'power')!;
   private farmZone = ZONES.find((z) => z.kind === 'farm')!;
   private mineZone = ZONES.find((z) => z.kind === 'mine')!;
   private warn = new THREE.PointLight(0xff3322, 0, 70, 1.4);
@@ -69,11 +72,12 @@ export class PlanetWorld {
     this.supply = new Supply(batch, this.lines);
     this.port = new Port(batch, this.lines);
     this.city = new City(batch);
+    this.power = new Power(batch);
     this.weather = new Weather(world);
     this.scatter = new Scatter(batch, this.lines.map((l) => ({ dir: l.plazaDir(), r: 8 })));
     world.scene.add(this.scatter.group);
     setGlow('sky', 0.6);
-    world.scene.add(batch.build(), this.crates.mesh, this.boxes.mesh, this.trolleys.mesh, this.crowd.group, this.fx.points, this.warn, this.marker, this.farm.group, this.mine.group, this.port.group, this.city.group, ...this.farm.meshes, ...this.mine.meshes, ...this.port.meshes, ...this.skyways.meshes, ...this.supply.meshes);
+    world.scene.add(batch.build(), this.crates.mesh, this.boxes.mesh, this.trolleys.mesh, this.crowd.group, this.fx.points, this.warn, this.marker, this.farm.group, this.mine.group, this.power.group, this.port.group, this.city.group, ...this.farm.meshes, ...this.mine.meshes, ...this.port.meshes, ...this.skyways.meshes, ...this.supply.meshes);
     for (const l of this.lines) world.scene.add(l.group);
 
     // Selection marker: a pulsing ring and a tall beam over the chosen run.
@@ -113,6 +117,38 @@ export class PlanetWorld {
           bestD = d;
           best = p.key;
         }
+      }
+    }
+    return best;
+  }
+
+  private lastRunLine = -1;
+
+  /**
+   * Where a run's box is right now, wherever it is: on its belt, in the dock, on its truck, at the pad, or on the
+   * rocket as it climbs. Null once it has left the world (the rocket reaches the stratosphere) or the run ended badly.
+   */
+  productPosition(key: string): THREE.Vector3 | null {
+    const hit = this.findProduct(key);
+    if (hit) {
+      const li = this.lines.indexOf(hit.line);
+      this.lastRunLine = li;
+      return hit.line.runPosition(key) ?? this.port.followRun(li, hit.product);
+    }
+    return this.lastRunLine >= 0 ? this.port.followRun(this.lastRunLine, null) : null;
+  }
+
+  /** The truck, rocket, drone or hover car nearest the pointer (within a few pixels), as something to follow. */
+  pickVehicle(ndc: THREE.Vector2, camera: THREE.PerspectiveCamera): (() => THREE.Vector3 | null) | null {
+    let best: (() => THREE.Vector3 | null) | null = null;
+    let bestD = 0.045;
+    for (const f of [...this.port.followables(), ...this.supply.followables(), ...this.skyways.followables()]) {
+      this.v.copy(f.pos).project(camera);
+      if (this.v.z > 1) continue;
+      const d = Math.hypot(this.v.x - ndc.x, (this.v.y - ndc.y) * 0.9);
+      if (d < bestD) {
+        bestD = d;
+        best = f.follow;
       }
     }
     return best;
@@ -162,14 +198,15 @@ export class PlanetWorld {
     this.farm.update(env, this.world.nightAt(zoneChart(this.farmZone).center));
     this.farm.draw(env, this.pools);
     this.mine.update(env, this.world.nightAt(zoneChart(this.mineZone).center));
-    this.supply.update(env);
+    this.supply.update(env, this.world.nightAt(this.world.controls.focus));
     this.mine.draw(env, this.pools);
     this.supply.draw(env, this.pools);
     this.port.update(env, this.world.nightAt(zoneChart(this.portZone).center));
     this.port.draw(env, this.pools);
     this.city.update(env, this.world.nightAt(zoneChart(this.cityZone).center));
+    this.power.update(env, this.world.nightAt(zoneChart(this.powerZone).center));
     this.city.draw(env, this.pools);
-    this.skyways.update(dt, elapsed, env.camDist);
+    this.skyways.update(dt, elapsed, env.camDist, this.world.nightAt(this.world.controls.focus));
     this.weather.update(dt, elapsed);
     if (env.camDist < 200) this.scatter.ambient.draw(env, this.pools);
     setGlow('wild', this.world.nightAt(this.world.controls.focus));

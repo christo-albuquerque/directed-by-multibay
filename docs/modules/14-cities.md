@@ -9,7 +9,8 @@ The cyberpunk hub: the Night Market city (Cyberpunk-2077-style neon) and the sky
 - Always moving, even when idle [v2].
 
 ## Current implementation
-- `src/world/city/City.ts`, zone `city` (lon 0, lat −8, 84 × 58). Mid-rise towers (heights 8–16 at the back, 5–11 on the sides) with glowing windows; stalls, diners, a spinning logo, steam vents, and roads with lane lines.
+- `src/world/city/City.ts`, zone `city` (lon 0, lat −8, 84 × 58): the **open-air Night Market**. The ring of towers and shopfronts is gone (it boxed the market in). 20 stalls stand in a loose, uneven ring round the plaza, each turned differently, with 11 low shops round the edge (`city/shops.ts`: restaurants, barbers, tailor, arcade, pharmacy, bakery, tea house), diners, a spinning logo and steam vents. Shoppers walk elliptical loops between the tables and the stalls.
+- **Cities across the globe** (`scatter.ts`): 7 further towns, at least 90 units apart and away from districts, mountains and lakes: blocks and shops facing the centre and a market square of 10 stalls at natural angles, with villagers.
 - `signs.ts`: `SignAtlas`, one canvas texture for all neon signs (one draw call).
 - Population: diners seated with ramen/cup props; strollers are `Ambient` grains that follow lane loops, stop at stalls, carry boxes, ride scooters, and react to clicks.
 - `Skyways.ts`: hover-car lanes (heights 24, 30, 38, 40, 48), package drones (22–31), satellites. Closed loops.

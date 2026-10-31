@@ -16,9 +16,10 @@ How a person looks around, inspects runs, and runs the demo, on desktop and phon
 - **Rotation axis guide** (GlobeControls.axisGuide): while a drag or two-finger turn is in progress a cyan line through the planet's centre, with a ring round it, shows the axis the world is turning about (left-drag: perpendicular to the focus direction and the drag direction; right-drag, shift-drag and two-finger turn: the view axis through the focus). It is smoothed, flips to avoid swinging, and fades out 0.5 s after release.
 - Per-event movement is clamped (90 px), flick glide is capped (28 px/frame) and scaled by frame time, stale pointers are cleared on blur or lost capture, NaN moves are ignored.
 - `ui/NavPanel.ts`: presets (Planet, Factory, Market, Rocket port, Farms, Mines) with `flyTo`.
-- `ui/LivePanel.ts`, `ProductPanel.ts`, `DemoPanel.ts`: live status, run details, demo buttons.
+- `ui/LivePanel.ts`, `ProductPanel.ts`, `DemoPanel.ts`: live status, run details, demo buttons (Success run, Fail @ lint/build/test, PR drone run, Cancel all, Speed, Sound, Motion, Matrix build, Cache hit run, Weather, Full cycle).
 - `ui/sfx.ts`: synthesized sound (siren, boom, crash, thud, stamp, rumble, squeak, rain); `ui/motion.ts`: reduced motion.
-- Taps: runs first, then grains (squeak and reaction).
+- Taps: runs first (the camera then **follows the box** through belt, dock, truck, pad and rocket until the rocket passes about 240 altitude: `GlobeControls.follow`, `PlanetWorld.productPosition`), then vehicles (follow), then grains (squeak and reaction). Dragging, zooming or tapping the "Following" chip stops it.
+- **Time dial** (`ui/TimeDial.ts`, bottom-left): a ring with a sun/moon handle showing the sun's position; drag it to set the time of day (the time locks), click Auto to let days run again.
 
 ## Invariants
 - Camera never uses a fixed-north heading for movement; pole crossing is smooth (checked in the console: steps stay constant across lat 89.9°).

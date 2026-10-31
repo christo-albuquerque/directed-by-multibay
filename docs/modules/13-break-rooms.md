@@ -10,7 +10,7 @@ Where grains eat, drink, read, chew gum and nap. In v1 this was the "Shift Break
 - Fixed world: plazas never appear or disappear [v2].
 
 ## Current implementation
-- `src/world/line/plaza.ts` `buildPlaza(batch, chart, zone, cx, cz)`: a plaza pad on the avenue side of each line at line-local (53, −8.5), built from a ramen stall (striped awning, neon RAMEN sign, lanterns, pot), coffee cart with umbrella, two tables with stools and bowls, two hammocks, four string-light posts. Returns **rest seats** (`Poi`, kind `rest`): 6 ramen, 2 nap, 3 coffee, 2 news, 3 gum.
+- `src/world/line/plaza.ts` `buildPlaza(batch, chart, zone, cx, cz)`: a plaza pad on the avenue side of each line at line-local (53, −8.5), built from a ramen stall (striped awning, lanterns, pot, and a neon **RAMEN** sign), coffee cart with umbrella (and a neon **COFFEE** sign), two tables with stools and bowls, two **futons** (a thin mattress on the floor with a pillow and a folded quilt), four string-light posts. Signs come from a per-line `SignAtlas`. Returns **rest seats** (`Poi`, kind `rest`): 6 ramen, 2 nap, 3 coffee, 2 news, 3 gum.
 - Used by `Folk` (02): six regulars always occupy seats; others come for a break when their lazy factor and the line's activity allow, and go back when the alarm sounds.
 - Seats flag `taken` so two grains never share one.
 - The plaza footprint is excluded from scenery (`Line.plazaDir`).

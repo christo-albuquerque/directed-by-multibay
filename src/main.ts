@@ -12,6 +12,7 @@ import { motion } from './ui/motion';
 import { NavPanel } from './ui/NavPanel';
 import { ProductPanel } from './ui/ProductPanel';
 import { sfx } from './ui/sfx';
+import { TimeDial } from './ui/TimeDial';
 import { PlanetWorld } from './world/PlanetWorld';
 import { WEATHER_MODES, type WeatherMode } from './world/weather';
 
@@ -70,7 +71,21 @@ async function boot(): Promise<void> {
     document.body.classList.toggle('has-selection', key !== null);
     const found = planet.findProduct(key);
     const line = found?.line ?? (key ? planet.lines.find((l) => l.repo && key.startsWith(`${l.repo}#`)) : undefined);
-    if (fly && line) world.controls.flyTo({ dir: line.chart.center, dist: 78, tilt: 0.62, heading: 0 }, 1.8);
+    if (key && found) startFollow('box', () => planet.productPosition(key));
+    else if (!key) world.controls.stopFollow();
+    else if (fly && line) world.controls.flyTo({ dir: line.chart.center, dist: 78, tilt: 0.62, heading: 0 }, 1.8);
+  };
+  // A small chip shows while the camera follows something; it ends when the target leaves the world.
+  const chip = document.createElement('button');
+  chip.className = 'follow-chip';
+  chip.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);padding:6px 14px;border-radius:16px;border:1px solid #35e0ff;background:rgba(10,16,28,.85);color:#bff6ff;font:600 13px system-ui,sans-serif;cursor:pointer;display:none;z-index:20';
+  document.body.appendChild(chip);
+  chip.addEventListener('click', () => world.controls.stopFollow());
+  world.controls.onFollowEnd = () => (chip.style.display = 'none');
+  const startFollow = (what: string, fn: () => THREE.Vector3 | null): void => {
+    world.controls.follow(fn, 42);
+    chip.textContent = `🎥 Following the ${what} · tap to stop`;
+    chip.style.display = 'block';
   };
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && selectedKey && !(e.target instanceof HTMLInputElement)) select(null);
@@ -205,6 +220,14 @@ async function boot(): Promise<void> {
     const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     const key = planet.pick(ndc, world.camera);
     // A tap on a grain makes it jump, flip or wave (and squeak); a tap on a run opens its details.
+    if (!key) {
+      // Vehicles: tap a truck, rocket, drone or hover car to follow it.
+      const vehicle = planet.pickVehicle(ndc, world.camera);
+      if (vehicle) {
+        startFollow('vehicle', vehicle);
+        return;
+      }
+    }
     if (!key && planet.pokeGrain(ndc, world.camera)) return;
     select(key && key !== selectedKey ? key : null);
   });
@@ -226,9 +249,11 @@ async function boot(): Promise<void> {
 
   // --- main loop -----------------------------------------------------------
   let lastUiTick = 0;
+  const timeDial = new TimeDial(document.body, world);
   world.onUpdate((dt, elapsed) => {
     const act = planet.lines.reduce((m, l) => Math.max(m, l.state.activity), 0);
     planet.update(dt, elapsed, act);
+    timeDial.update();
     const o = overall();
     const sel = planet.lines[Math.min(panel.target, planet.lines.length - 1)];
     panel.update(sel.state.mode, sel.state.stats);

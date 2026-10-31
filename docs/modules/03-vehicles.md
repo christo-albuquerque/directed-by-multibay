@@ -20,6 +20,9 @@ Everything that carries things or people: trucks, drones, forklifts, flying cars
 - **Forklifts** (line/props.ts, Line.updateForklift): one per line works the dock apron aisle between the two parked delivery trucks, loading crates into their beds (see 11).
 - **Supply trucks** (`world/supply.ts`): one crop or ore truck per line, hidden while loading in its shed, then driving a registered road to the depot bay, unloaded by two porters with trolleys, then back in the opposite lane.
 
+- **Lights:** trucks (port, supply, mine) and hover cars have head and tail lights (`LitPool` in `pools.ts`: an unlit companion pool drawn at the same places, brightness 0.1 by day to 0.8 at night, deliberately subtle so it does not bloom).
+- **Follow:** tap a truck, rocket, drone or hover car to make the camera follow it (`PlanetWorld.pickVehicle`, `followables()` on Port, Supply and Skyways); it stops when you drag, zoom, tap the chip, or the target leaves the world.
+
 ## Invariants
 - One supply truck per line plus two delivery trucks per line; express truck waits for a real run; release only counts when the rocket lifts off.
 - One forklift per line on the dock apron, between the two truck bays; the two delivery trucks park in separate bays, nose out.

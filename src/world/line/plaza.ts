@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Chart } from '../../globe/surface';
 import { M, Prefab, StaticBatch, bentSlab, glowMat } from '../kit';
 import type { Poi } from '../folk';
+import type { SignAtlas } from '../city/signs';
 
 const TOP = 0.35;
 
@@ -43,14 +44,16 @@ function table(): Prefab {
   return p;
 }
 
+/** A Japanese futon laid on the floor: a thin mattress with a pillow at one end and a folded quilt over the other. */
 function hammock(): Prefab {
   return new Prefab()
-    .cyl(0.07, 0.09, 1.6, M(0x6b4a2b), -1.5, 0, 0, 6)
-    .cyl(0.07, 0.09, 1.6, M(0x6b4a2b), 1.5, 0, 0, 6)
-    .box(2.7, 0.06, 0.8, M(0x4aa3a0), 0, 0.72, 0)
-    .box(0.5, 0.05, 0.7, M(0xf1e7d0), -0.95, 0.8, 0);
+    .box(2.1, 0.12, 0.95, M(0xf1e7d0), 0, 0, 0)
+    .box(1.35, 0.1, 0.9, M(0x3b5b8a), 0.35, 0.12, 0)
+    .box(1.35, 0.03, 0.18, M(0xe9dfc8), 0.35, 0.22, 0.28)
+    .box(1.35, 0.03, 0.18, M(0xe9dfc8), 0.35, 0.22, -0.28)
+    .box(0.48, 0.13, 0.62, M(0xfbf6ea), -0.75, 0.12, 0)
+    .box(0.5, 0.02, 0.64, M(0xd9c9a3), -0.75, 0.25, 0);
 }
-
 function post(zone: string): Prefab {
   return new Prefab().cyl(0.06, 0.07, 3.4, M(0x4b2e1f), 0, 0, 0, 5).sphere(0.12, glowMat(zone, 0xffd166, 0.25, 2.4), 0, 3.45, 0, 1, 6).sphere(0.1, glowMat(zone, 0xff6b9d, 0.25, 2.4), 0.5, 3.2, 0.3, 1, 6).sphere(0.1, glowMat(zone, 0x6bd6ff, 0.25, 2.4), -0.5, 3.25, -0.3, 1, 6);
 }
@@ -68,7 +71,7 @@ export function cratePile(): Prefab {
  * A break plaza beside a line: ramen stall, coffee cart, tables, hammocks and string lights on their own pad,
  * returned along with every seat grains can use.
  */
-export function buildPlaza(batch: StaticBatch, chart: Chart, zone: string, cx: number, cz: number): Poi[] {
+export function buildPlaza(batch: StaticBatch, chart: Chart, zone: string, cx: number, cz: number, signs?: SignAtlas): Poi[] {
   batch.addGeometry(M(0x8a8478), bentSlab(chart, cx, cz, 10.4, 10.4, TOP, 3, 3));
   batch.addGeometry(M(0x9a9488), bentSlab(chart, cx, cz, 9.2, 9.2, TOP + 0.04, 3, 3));
   const at = (p: Prefab, x: number, z: number, rot = 0): void => void batch.placeOn(p, chart, cx + x, cz + z, TOP + 0.04, rot);
@@ -78,7 +81,10 @@ export function buildPlaza(batch: StaticBatch, chart: Chart, zone: string, cx: n
   };
 
   at(stall(zone), -0.2, -4.4, 0);
+  // Neon signs say what each place is: cells 0 and 1 of the plaza's own atlas.
+  signs?.add(chart, 0, cx - 0.2, cz - 3.4, TOP + 0.04 + 3.6, 2.7, 0.9, 0);
   at(cart(zone), 3.0, 3.8, Math.PI);
+  signs?.add(chart, 1, cx + 3.0, cz + 3.1, TOP + 0.04 + 2.75, 2.0, 0.7, Math.PI);
   at(table(), -2.2, -0.9);
   at(table(), 1.9, -0.3);
   at(hammock(), -2.3, 3.6, 0);
@@ -94,8 +100,8 @@ export function buildPlaza(batch: StaticBatch, chart: Chart, zone: string, cx: n
       rest(sx, sz, Math.atan2(tx - sx, tz - sz), 'ramen', 0.48);
     }
   }
-  rest(-2.3, 3.6, 0, 'nap', 0.6, [20, 40]);
-  rest(1.2, 4.3, 0, 'nap', 0.6, [20, 40]);
+  rest(-2.3, 3.6, 0, 'nap', 0.06, [20, 40]);
+  rest(1.2, 4.3, 0, 'nap', 0.06, [20, 40]);
   for (const x of [2.2, 3.4, 4.2]) rest(x, 2.6, Math.PI, 'coffee');
   for (const x of [-1.8, -0.6]) rest(x, -3.2, 0, 'news');
   for (const [x, z, f] of [[-4.0, 1.4, 0.6], [-3.4, 2.3, -0.5], [0, 2.2, 2.5]] as const) rest(x, z, f, 'gum');

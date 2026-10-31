@@ -8,7 +8,7 @@ Places where grains shop, eat and drink: the Night Market stalls and diner plaza
 - Grains eat ramen with chopsticks, sip coffee, read newspapers [Brief §4].
 
 ## Current implementation
-- City (`city/City.ts`, `signs.ts`): two rows of stalls facing a plaza with tables and seated diners (ramen and cup props), strollers who stop at stalls, neon signs from one atlas, spinning logo.
+- City (`city/City.ts`, `signs.ts`, `shops.ts`): 20 stalls at scattered, natural angles round a plaza with tables and seated diners, 11 shops (restaurants, barber, hair salon, tailor, arcade, pharmacy, bakery, tea house) with neon signs from one atlas and kind-specific details (barber's pole, restaurant lanterns and chimney, pharmacy cross), strollers who stop at stalls, spinning logo.
 - Break plazas (`line/plaza.ts`): ramen stall (neon RAMEN sign, lanterns), coffee cart, tables (see 13).
 - Villages (`scatter.ts`): 3 stalls per village plaza (pink/cyan/amber awnings with neon strips).
 

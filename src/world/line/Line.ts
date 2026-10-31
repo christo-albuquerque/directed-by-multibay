@@ -11,6 +11,7 @@ import { BeltSurface, beltSupports, ribbonMesh } from '../belts';
 import { IDLE_LIMBS, LOOKS, walkLimbs, workLimbs, type GrainPose, type LookName, type WorkStyle } from '../crowd';
 import { Folk, Net, type AgentSpec, type Poi, type Pt } from '../folk';
 import { buildPlaza, cratePile } from './plaza';
+import { SignAtlas } from '../city/signs';
 import { TestLab, TEST_SECONDS, launcherPrefab } from './testlab';
 import { forkliftBody, forkliftForks, funnel, tubeHatch } from './props';
 import { hasCacheHit, matrixWidth } from '../../sim/runs';
@@ -415,7 +416,9 @@ export class Line {
 
     // Break plaza on the avenue side of the pad, with its seats as errands.
     const PLAZA: Pt = { x: 53, z: -8.5 };
-    const seats = buildPlaza(batch, this.chart, zone, PLAZA.x, PLAZA.z);
+    const plazaSigns = new SignAtlas([{ text: 'RAMEN', color: '#ff4fa3', sub: 'NOODLE BAR' }, { text: 'COFFEE', color: '#ffb02e', sub: 'FRESH BREW' }], zone);
+    const seats = buildPlaza(batch, this.chart, zone, PLAZA.x, PLAZA.z, plazaSigns);
+    this.group.add(plazaSigns.build());
     net.link(yard, net.node(PLAZA.x, PLAZA.z + 1));
 
     // Where a worker stands: beside station k, `x` to its left and `z` along the belt (near side of the walkway).
@@ -985,6 +988,16 @@ export class Line {
       }
       pools.crowd.draw(g);
     }
+  }
+
+  /** Where a real run's box is right now (on its belt, or waiting in the dock), or null once it has left the line. */
+  runPosition(key: string): THREE.Vector3 | null {
+    for (const e of this.ex.values()) {
+      if (e.product.key !== key) continue;
+      if (e.mode === 'loaded') return this.dockPose().pos.clone();
+      return this.lanePos(this.express, e.s, new THREE.Vector3());
+    }
+    return null;
   }
 
   /** Screen picking: every grain on this line. */

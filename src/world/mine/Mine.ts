@@ -10,9 +10,9 @@ import { Dyn } from '../dyn';
 
 import { M, Prefab, StaticBatch, glowMat, setGlow } from '../kit';
 import { hood, lamp, tank } from '../line/prefabs';
-import { InstancePool, surfaceMatrix } from '../pools';
+import { InstancePool, LitPool, surfaceMatrix } from '../pools';
 import type { Env, Pools } from '../types';
-import { dumpTruck, mineCart, oreHeap } from '../vehicles';
+import { dumpTruck, dumpTruckLights, mineCart, oreHeap } from '../vehicles';
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
 const m4 = new THREE.Matrix4();
@@ -38,7 +38,7 @@ export class Mine {
   private rail: SurfacePath;
   private railOut: SurfacePath;
   private railBack: SurfacePath;
-  private trucks = new InstancePool(dumpTruck(), 4, false);
+  private trucks = new LitPool(dumpTruck(), dumpTruckLights(), 4, false);
   private carts = new InstancePool(mineCart(), 12, false);
   private loads = new InstancePool(oreHeap(1.7), 24, false, false);
   private boom: Dyn;
@@ -111,6 +111,40 @@ export class Mine {
     batch.placeOn(rig, c, -36, 20, 0.3, 0);
     batch.placeOn(rig, c, -38, 28, 0.3, 0.5);
 
+    // Mine shafts of several kinds round the rim, in the blocky timber style: each has hanging lanterns that glow softly
+    // at night, with tools, barrels and crates lying about.
+    const wood = M(0x6b4a2b);
+    const darkWood = M(0x4a3320);
+    const lantern = glowMat(id, 0xffb45a, 0.1, 1.1);
+    const tunnelDark = M(0x0d0f14);
+    /** A timber-framed tunnel mouth cut into the rim, with a rail leading in. */
+    const adit = new Prefab().box(5.6, 4.6, 3, M(0x5a4a3a), 0, 0, 0).box(3.2, 3.2, 0.2, tunnelDark, 0, 0, 1.45);
+    for (const x of [-1.8, 1.8]) adit.box(0.5, 3.6, 0.6, wood, x, 0, 1.5);
+    adit.box(4.6, 0.5, 0.6, wood, 0, 3.4, 1.5).box(0.3, 0.3, 0.3, lantern, -1.4, 2.9, 1.9).box(0.3, 0.3, 0.3, lantern, 1.4, 2.9, 1.9);
+    for (const x of [-0.6, 0.6]) adit.box(0.12, 0.1, 5, M(0x9aa4b2), x, 0, 4);
+    /** A wooden headframe over a vertical shaft, with a winch wheel and a bucket. */
+    const headframe = new Prefab().box(4.4, 0.4, 4.4, darkWood, 0, 0, 0).box(0.5, 8, 0.5, wood, -1.7, 0.4, -1.7).box(0.5, 8, 0.5, wood, 1.7, 0.4, -1.7).box(0.5, 6, 0.5, wood, -1.7, 0.4, 1.7).box(0.5, 6, 0.5, wood, 1.7, 0.4, 1.7);
+    headframe.box(4.2, 0.4, 0.4, wood, 0, 8, -1.7).box(0.4, 0.4, 3.8, wood, -1.7, 7.4, 0).box(0.4, 0.4, 3.8, wood, 1.7, 7.4, 0);
+    headframe.cyl(1.1, 1.1, 0.4, M(0x8a5a2b), 0, 6.6, -1.7, 12).box(0.12, 5, 0.12, M(0x23262d), 0, 1.4, -1.7).box(1.0, 0.8, 1.0, M(0x6b7280), 0, 0.9, -1.7).box(0.3, 0.3, 0.3, lantern, -1.7, 5.6, 2.0).box(0.3, 0.3, 0.3, lantern, 1.7, 5.6, 2.0);
+    /** A scaffolded ladder hatch with railings, lantern posts and a heap of supplies. */
+    const hatch = new Prefab().box(3.2, 0.3, 3.2, darkWood, 0, 0, 0).box(1.4, 0.32, 1.4, tunnelDark, 0, 0, 0).box(0.14, 1.2, 0.14, wood, -1.5, 0, -1.5).box(0.14, 1.2, 0.14, wood, 1.5, 0, -1.5).box(0.14, 1.2, 0.14, wood, -1.5, 0, 1.5).box(0.14, 1.2, 0.14, wood, 1.5, 0, 1.5);
+    hatch.box(3.1, 0.1, 0.1, wood, 0, 1.0, 1.5).box(3.1, 0.1, 0.1, wood, 0, 1.0, -1.5).box(0.1, 0.1, 3.1, wood, -1.5, 1.0, 0).box(0.1, 0.1, 3.1, wood, 1.5, 1.0, 0);
+    hatch.box(0.25, 0.25, 0.25, lantern, -1.5, 1.3, -1.5).box(0.25, 0.25, 0.25, lantern, 1.5, 1.3, 1.5);
+    /** Tools and supplies: pickaxes leaning on a post, powder kegs, a lantern crate. */
+    const tools = new Prefab().box(0.2, 1.6, 0.2, wood, 0, 0, 0).box(1.0, 0.12, 0.12, M(0x9aa4b2), 0.3, 1.5, 0, 0, 0.3).cyl(0.45, 0.45, 0.9, M(0x7a4f2b), 1.4, 0, 0.5, 8).cyl(0.45, 0.45, 0.9, M(0x7a4f2b), 2.2, 0, -0.2, 8).box(0.9, 0.7, 0.9, M(0xb98a52), -1.2, 0, 0.4).box(0.3, 0.3, 0.3, lantern, -1.2, 0.7, 0.4);
+    const spots: [Prefab, number, number, number][] = [
+      [adit, 46, -4, -Math.PI / 2],
+      [adit, -44, -10, Math.PI / 2],
+      [headframe, 44, 22, 0.6],
+      [headframe, -42, -2, 0],
+      [hatch, 40, -26, 0.3],
+      [hatch, -30, 36, 0],
+      [tools, 42, -2, 0.4],
+      [tools, -42, 12, 1],
+      [tools, 28, 30, 2],
+    ];
+    for (const [pf, x, z, rot] of spots) batch.placeOn(pf, c, x, z, 0.3, rot);
+
     // Miners walking the rim road.
     const rim = SurfacePath.through(c, Array.from({ length: 16 }, (_, i) => [Math.cos((i / 16) * Math.PI * 2) * 36, Math.sin((i / 16) * Math.PI * 2) * 36] as [number, number]).concat([[36, 0]]), 0.4, false, 1);
     const looks: LookName[] = ['corn', 'rice', 'corn', 'wheat', 'rice', 'basmati', 'millet'];
@@ -118,7 +152,9 @@ export class Mine {
   }
 
   update(env: Env, night: number): void {
-    setGlow(this.zone.id, night);
+    // Night lighting in the mine is kept low and warm.
+    setGlow(this.zone.id, night * 0.55);
+    this.trucks.setNight(night);
     this.t += env.dt;
     // Excavator digs in a steady loop.
     const T = 7;
@@ -244,6 +280,6 @@ export class Mine {
   }
 
   get meshes(): THREE.Object3D[] {
-    return [this.trucks.mesh, this.carts.mesh, this.loads.mesh];
+    return [...this.trucks.meshes, this.carts.mesh, this.loads.mesh];
   }
 }

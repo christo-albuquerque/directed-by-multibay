@@ -10,9 +10,9 @@ import { Dyn } from '../dyn';
 import { M, Prefab, StaticBatch, bentDisc, glowMat, setGlow } from '../kit';
 import type { Line } from '../line/Line';
 import { lamp, tank } from '../line/prefabs';
-import { InstancePool, surfaceMatrix } from '../pools';
+import { InstancePool, LitPool, surfaceMatrix } from '../pools';
 import type { Env, Pools } from '../types';
-import { courierDrone, deliveryTruck } from '../vehicles';
+import { courierDrone, deliveryTruck, deliveryTruckLights } from '../vehicles';
 
 const PAD_Y = 0.35;
 /** Sideways distance of each of the two parking bays from the dock apron's centre line. */
@@ -74,6 +74,8 @@ interface Truck {
   t: number;
   load: number;
   carrying: Product | null;
+  /** Where the truck was last drawn (for the follow camera). */
+  pos: THREE.Vector3;
   slot: number;
 }
 
@@ -88,7 +90,7 @@ export class Port {
   private chart: Chart;
   private rockets = new InstancePool(rocketPrefab(), 24, false);
   private drones = new InstancePool(courierDrone('port'), 24, false);
-  private trucks = new InstancePool(deliveryTruck(), 16, false);
+  private trucks = new LitPool(deliveryTruck(), deliveryTruckLights(), 16, false);
   private crafts: Craft[] = [];
   private fleet: Truck[] = [];
   private roads: SurfacePath[] = [];
@@ -171,7 +173,7 @@ export class Port {
       const road = SurfacePath.through3D(clean, 1.2);
       registerCorridor(road, 2.4);
       this.roads.push(road);
-      for (const slot of [0, 1]) this.fleet.push({ line: i, state: slot === 0 ? 'wait' : 'return', s: slot === 0 ? 0 : road.length * (0.3 + Math.random() * 0.5), t: Math.random() * 3, load: slot === 0 ? 0.4 : 0, carrying: null, slot });
+      for (const slot of [0, 1]) this.fleet.push({ line: i, state: slot === 0 ? 'wait' : 'return', s: slot === 0 ? 0 : road.length * (0.3 + Math.random() * 0.5), t: Math.random() * 3, load: slot === 0 ? 0.4 : 0, carrying: null, slot, pos: new THREE.Vector3() });
     });
   }
 
@@ -196,6 +198,7 @@ export class Port {
   // --- simulation ------------------------------------------------------------------
 
   update(env: Env, night: number): void {
+    this.trucks.setNight(night);
     setGlow(this.zone.id, night);
     this.dishes.forEach((d, i) => d.set(m4.makeRotationY(env.elapsed * (0.5 + i * 0.2))));
 
@@ -450,6 +453,7 @@ export class Port {
         fwd.negate();
       }
       surfaceMatrix(sample.pos, fwd, sample.up, m4);
+      t.pos.copy(sample.pos);
       this.trucks.push(m4);
       if (t.load > 0.03) {
         for (let k = 0; k < 3; k++) {
@@ -474,7 +478,40 @@ export class Port {
     this.trucks.end();
   }
 
+  /**
+   * Where a product is once it has left its line: on the truck that carries it, waiting at the pad, or on the rocket
+   * as it climbs. Returns null when the rocket has reached the stratosphere (following ends there).
+   */
+  followRun(line: number, product: Product | null): THREE.Vector3 | null {
+    const out = new THREE.Vector3();
+    const rocket = (): THREE.Vector3 | null => {
+      const c = this.crafts.find((o) => o.pad === line && (o.state === 'countdown' || o.state === 'ascend' || o.state === 'docked'));
+      return c && c.alt < 240 ? this.craftPos(c, out) : null;
+    };
+    if (!product) {
+      const c = this.crafts.find((o) => o.pad === line && o.state === 'ascend');
+      return c && c.alt < 240 ? this.craftPos(c, out) : null;
+    }
+    const truck = this.fleet.find((o) => o.line === line && o.carrying === product);
+    if (truck) return truck.pos.clone();
+    if (product.status === 'failed' || product.status === 'cancelled') return null;
+    if (product.status === 'launching') return rocket() ?? this.padPos[line].clone();
+    return this.padPos[line].clone();
+  }
+
+  /** Things on the ground and in the air that can be clicked to follow (trucks, rockets, drones). */
+  followables(): { pos: THREE.Vector3; follow: () => THREE.Vector3 | null }[] {
+    const list: { pos: THREE.Vector3; follow: () => THREE.Vector3 | null }[] = [];
+    for (const t of this.fleet) list.push({ pos: t.pos, follow: () => t.pos.clone() });
+    for (const c of this.crafts) {
+      if (c.state === 'away' || c.alt > 240) continue;
+      const pos = this.craftPos(c, new THREE.Vector3());
+      list.push({ pos, follow: () => (c.state === 'away' || c.alt > 240 ? null : this.craftPos(c, new THREE.Vector3())) });
+    }
+    return list;
+  }
+
   get meshes(): THREE.Object3D[] {
-    return [this.rockets.mesh, this.drones.mesh, this.trucks.mesh];
+    return [this.rockets.mesh, this.drones.mesh, ...this.trucks.meshes];
   }
 }

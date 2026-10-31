@@ -75,3 +75,43 @@ export class InstancePool {
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
 }
+
+/**
+ * A pool of vehicles with their head and tail lights as a second, unlit pool drawn at the same places. Instanced vehicles
+ * only keep their paint, so lamps cannot glow in the body pool; here they do, dimly by day and softly at night
+ * (kept low on purpose so it never overpowers the night lighting or blooms hard).
+ */
+export class LitPool {
+  readonly body: InstancePool;
+  readonly lights: InstancePool;
+
+  constructor(body: Prefab, lights: Prefab, capacity: number, tinted = false, castShadow = true) {
+    this.body = new InstancePool(body, capacity, tinted, castShadow);
+    this.lights = new InstancePool(lights, capacity, false, false, true);
+    this.setNight(0);
+  }
+
+  begin(): void {
+    this.body.begin();
+    this.lights.begin();
+  }
+
+  push(m: THREE.Matrix4, tint?: number): void {
+    this.body.push(m, tint);
+    this.lights.push(m);
+  }
+
+  end(): void {
+    this.body.end();
+    this.lights.end();
+  }
+
+  /** 0 = day (lamps barely visible), 1 = night. */
+  setNight(night: number): void {
+    (this.lights.mesh.material as THREE.MeshBasicMaterial).color.setScalar(0.1 + 0.7 * Math.min(1, Math.max(0, night)));
+  }
+
+  get meshes(): THREE.Object3D[] {
+    return [this.body.mesh, this.lights.mesh];
+  }
+}

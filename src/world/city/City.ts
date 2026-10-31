@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { SurfacePath } from '../../globe/path';
 import { Chart } from '../../globe/surface';
 import { ZONES, zoneChart, type Zone } from '../../globe/zones';
-import { ribbonMesh } from '../belts';
 import { Ambient } from '../ambient';
 import { LOOKS, workLimbs, type GrainPose, type LookName } from '../crowd';
 import { M, Prefab, StaticBatch, glowMat, setGlow } from '../kit';
 import { lamp } from '../line/prefabs';
 import type { Env, Pools } from '../types';
+import { SHOP_KINDS, shopPrefab } from './shops';
 import { SignAtlas, type SignSpec } from './signs';
 
 const GROUND = 0.35;
@@ -39,6 +39,15 @@ const SIGNS: SignSpec[] = [
   { text: '24H', color: NEON_CSS[3] },
   { text: 'TACO TRUCK', color: NEON_CSS[1] },
   { text: 'DATA DUMPLINGS', color: NEON_CSS[0] },
+  { text: 'RAMEN HOUSE', color: NEON_CSS[0], sub: 'OPEN LATE' },
+  { text: 'BARBER', color: NEON_CSS[1], sub: 'FADES & TRIMS' },
+  { text: 'STEAK HOUSE', color: NEON_CSS[3] },
+  { text: 'TAILOR', color: NEON_CSS[5], sub: 'FITTED FOR YOU' },
+  { text: 'ARCADE', color: NEON_CSS[2], sub: '1UP' },
+  { text: 'PHARMACY', color: NEON_CSS[4] },
+  { text: 'BAKERY', color: NEON_CSS[3], sub: 'FRESH BUNS' },
+  { text: 'TEA HOUSE', color: NEON_CSS[4] },
+  { text: 'HAIR SALON', color: NEON_CSS[0] },
 ];
 
 function rand(seed: number): () => number {
@@ -73,25 +82,6 @@ interface Stroller {
 }
 
 const v3 = new THREE.Vector3();
-
-function tower(w: number, d: number, h: number, color: number, zone: string, r: () => number): Prefab {
-  const p = new Prefab().box(w, h, d, M(color), 0, 0, 0);
-  // Setbacks and a crown.
-  p.box(w * 0.75, h * 0.18, d * 0.75, M(color), 0, h, 0).box(w * 0.4, h * 0.14, d * 0.4, M(0x2c3040), 0, h * 1.18, 0);
-  p.box(0.3, 5, 0.3, M(0x9aa4b2), 0, h * 1.32, 0).box(0.5, 0.5, 0.5, glowMat(zone, 0xff3b3b, 0.5, 3.5), 0, h * 1.32 + 5, 0);
-  // Windows: bands of light on the front and sides.
-  const rows = Math.floor(h / 3.2);
-  for (let i = 1; i < rows; i++) {
-    if (r() < 0.25) continue;
-    const c = NEON[Math.floor(r() * NEON.length)];
-    const wm = glowMat(zone, c, 0.1, 1.7);
-    const off = r() * 2 - 1;
-    p.box(w * 0.7, 0.6, 0.12, wm, off, i * 3.2, d / 2 + 0.04).box(0.12, 0.6, d * 0.7, wm, w / 2 + 0.04, i * 3.2, -off);
-  }
-  // Vertical neon trim on a corner.
-  p.box(0.3, h * 0.8, 0.3, glowMat(zone, NEON[Math.floor(r() * NEON.length)], 0.15, 2.6), w / 2, h * 0.1, d / 2);
-  return p;
-}
 
 function stall(zone: string, color: number): Prefab {
   const p = new Prefab().box(5, 1.2, 1.8, M(0x3a3f4c), 0, 0, 0).box(5.2, 0.15, 2, M(0xd9c8a0), 0, 1.2, 0);
@@ -136,52 +126,29 @@ export class City {
     const r = rand(77);
     this.signs = new SignAtlas(SIGNS, id);
 
-    // Towers around the edges, taller toward the back.
-    const colors = [0x2d3248, 0x3a2f4d, 0x24384a, 0x41334a, 0x2b3d3f];
-    for (let i = 0; i < 9; i++) {
-      const h = 8 + r() * 8;
-      batch.placeOn(tower(8 + r() * 3, 8 + r() * 3, h, colors[i % colors.length], id, r), c, -37 + i * 9.2, -25, GROUND, 0);
-    }
-    for (let i = 0; i < 5; i++) {
-      batch.placeOn(tower(8, 9, 5 + r() * 6, colors[(i + 1) % colors.length], id, r), c, -39, -15 + i * 9.5, GROUND, 0);
-      batch.placeOn(tower(8, 9, 5 + r() * 6, colors[(i + 2) % colors.length], id, r), c, 39, -15 + i * 9.5, GROUND, 0);
-    }
-    // Low shopfronts along the south edge.
-    for (let i = 0; i < 9; i++) batch.placeOn(new Prefab().box(8, 5 + r() * 2, 5, M(colors[i % colors.length]), 0, 0, 0).box(8.2, 0.4, 5.2, glowMat(id, NEON[i % NEON.length], 0.2, 2.2), 0, 5, 0), c, -35 + i * 8.8, 26.5, GROUND, Math.PI);
-
-    // Streets with neon centre lines.
-    const asphalt = new THREE.MeshStandardMaterial({ color: 0x2a2d3a, roughness: 0.45, metalness: 0.3, side: THREE.DoubleSide, flatShading: true });
-    const lineMat = glowMat(id, 0x39ffe0, 0.12, 1.8);
-    lineMat.side = THREE.DoubleSide;
-    const streets: [number, number][][] = [
-      [[-40, -15], [0, -15], [40, -15]],
-      [[-40, 17], [0, 17], [40, 17]],
-      [[-30, -24], [-30, 0], [-30, 24]],
-      [[30, -24], [30, 0], [30, 24]],
-      [[0, -24], [0, 0], [0, 24]],
-    ];
-    for (const pts of streets) {
-      const p = SurfacePath.through(c, pts, GROUND + 0.03, false, 2);
-      this.group.add(ribbonMesh(p, 3.2, asphalt), ribbonMesh(p, 0.12, lineMat, 0.03));
-    }
-
-    // Two rows of stalls facing the plaza, then the plaza itself with tables and diners.
+    // The market is open air: no wall of towers. Stalls stand in a loose, uneven ring round the plaza, each turned a
+    // little differently (the way real stalls are put out), with shops of every kind around the edges.
     const stallColors = [0xd6342a, 0x2f8f83, 0x7a5aa8, 0xd99a2e, 0x2f6fb5, 0xb8433a];
     let sign = 0;
-    for (let i = 0; i < 7; i++) {
-      const x = -21 + i * 7;
-      batch.placeOn(stall(id, stallColors[i % stallColors.length]), c, x, -9, GROUND, 0);
-      this.signs.add(c, sign++ % 18, x, -7.6, GROUND + 4.9, 4.4, 2.2, 0);
-      batch.placeOn(stall(id, stallColors[(i + 2) % stallColors.length]), c, x, 12, GROUND, Math.PI);
-      this.signs.add(c, sign++ % 18, x, 10.6, GROUND + 4.9, 4.4, 2.2, Math.PI);
+    for (let i = 0; i < 20; i++) {
+      const a = (i / 20) * Math.PI * 2 + (r() - 0.5) * 0.3;
+      const rad = 0.8 + r() * 0.2;
+      const x = Math.cos(a) * 34 * rad;
+      const z = 4 + Math.sin(a) * 22 * rad;
+      const rot = Math.atan2(-x, 4 - z) + (r() - 0.5) * 0.9;
+      batch.placeOn(stall(id, stallColors[i % stallColors.length]), c, x, z, GROUND, rot);
+      this.signs.add(c, sign++ % 18, x + Math.sin(rot) * 1.4, z + Math.cos(rot) * 1.4, GROUND + 4.9, 4.4, 2.2, rot);
     }
-    // Big vertical signs on the towers.
-    for (let i = 0; i < 9; i += 2) this.signs.add(c, 18 + (i % 2), -37 + i * 9.2, -20.6, GROUND + 7, 7, 3.6, 0);
-    this.signs.add(c, 22, -33, 22.5, GROUND + 5.5, 4, 2, 0);
-    this.signs.add(c, 23, 33, 22.5, GROUND + 5.5, 4, 2, 0);
-    this.signs.add(c, 20, 33, -4, GROUND + 4.2, 2.6, 1.3, 0);
-    this.signs.add(c, 21, -33, -4, GROUND + 4.2, 2.6, 1.3, 0);
-
+    // Shops: restaurants, a barber, a tailor, an arcade, a pharmacy and more, low and spread out.
+    const shopSpots: [number, number][] = [[-37, -14], [-36, 10], [-30, 24], [-12, 26], [12, 26], [30, 24], [37, 10], [37, -14], [28, -24], [-26, -24], [0, -27]];
+    shopSpots.forEach(([x, z], i) => {
+      const spec = SHOP_KINDS[i % SHOP_KINDS.length];
+      const rot = Math.atan2(-x, 4 - z) + (r() - 0.5) * 0.5;
+      const h = 4 + r() * 1.6;
+      batch.placeOn(shopPrefab(id, spec.kind, spec.wall, spec.neon, 7 + r() * 2, 5.5 + r(), h), c, x, z, GROUND, rot);
+      const cell = SIGNS.findIndex((s) => s.text === spec.sign);
+      if (cell >= 0) this.signs.add(c, cell, x + Math.sin(rot) * 3.4, z + Math.cos(rot) * 3.4, GROUND + h + 1.6, 4.6, 1.7, rot);
+    });
     const seatR = rand(5);
     const looks: LookName[] = ['rice', 'corn', 'wheat', 'quinoa', 'millet', 'basmati', 'punk', 'neon'];
     const tablePos: [number, number][] = [];
@@ -204,7 +171,7 @@ export class City {
     }
 
     // Lamp posts, steam vents and the spinning logo over the plaza.
-    for (let x = -36; x <= 36; x += 12) for (const z of [-15, 17]) batch.placeOn(lamp(id), c, x, z, GROUND);
+    for (let i = 0; i < 14; i++) batch.placeOn(lamp(id), c, Math.cos((i / 14) * Math.PI * 2) * 25.5, 4 + Math.sin((i / 14) * Math.PI * 2) * 17.5, GROUND);
     for (const [x, z] of [[-24, 4], [24, 4], [0, -12], [0, 15]] as const) this.ventPos.push(c.point(x, z, GROUND + 0.2));
     batch.placeOn(new Prefab().cyl(0.5, 0.8, 18, M(0x3a3f4c), 0, 0, 0, 8).box(5, 0.5, 5, glowMat(id, 0xff2d95, 0.3, 3), 0, 18, 0), c, 0, 4, GROUND);
     const logo = document.createElement('canvas');
@@ -237,17 +204,8 @@ export class City {
     this.group.add(this.holo, this.signs.build());
 
     // Shoppers: endless loops along the sidewalks, stopping at stalls.
-    const loops: [number, number][][] = [
-      [[-27, -12], [27, -12], [27, 14], [-27, 14], [-27, -12]],
-      [[-33, -20], [-33, 22], [-27, 22], [-27, -20], [-33, -20]],
-      [[27, -20], [27, 22], [33, 22], [33, -20], [27, -20]],
-      [[-24, 5], [-6, 5], [-6, 9], [-24, 9], [-24, 5]],
-      [[6, 5], [24, 5], [24, 9], [6, 9], [6, 5]],
-      [[-34, 20], [34, 20], [34, 24], [-34, 24], [-34, 20]],
-      [[-8, -20], [8, -20], [8, 22], [-8, 22], [-8, -20]],
-      [[-12, -4], [12, -4], [12, 3], [-12, 3], [-12, -4]],
-    ];
-    const walkR = rand(31);
+    const ring = (rx: number, rz: number, n = 20): [number, number][] => Array.from({ length: n + 1 }, (_, i) => [Math.cos((i / n) * Math.PI * 2) * rx, 4 + Math.sin((i / n) * Math.PI * 2) * rz] as [number, number]);
+    const loops: [number, number][][] = [ring(24.5, 15.5), ring(24.5, 15.5).reverse(), [[-24, 5], [-6, 5], [-6, 9], [-24, 9], [-24, 5]], [[6, 5], [24, 5], [24, 9], [6, 9], [6, 5]], [[-12, -4], [12, -4], [12, 3], [-12, 3], [-12, -4]]];    const walkR = rand(31);
     loops.forEach((pts, li) => {
       const path = SurfacePath.through(c, pts, GROUND + 0.05, false, 0.9);
       const n = 22 + li * 2;

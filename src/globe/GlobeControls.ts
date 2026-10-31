@@ -52,6 +52,11 @@ export class GlobeControls {
   private axisAlpha = 0;
   /** Set false (reduced motion) to stop inertia. */
   inertia = true;
+  /** While set, the camera keeps this world position in the middle of the screen (until it returns null or the user drags). */
+  private followFn: (() => THREE.Vector3 | null) | null = null;
+  private followDist = 0;
+  /** Called when following ends (the target left the world, or the user took over). */
+  onFollowEnd: (() => void) | null = null;
   /** Called when the user takes over from a fly-to. */
   onUserInput: (() => void) | null = null;
 
@@ -118,6 +123,37 @@ export class GlobeControls {
     target.heading = from.heading + Math.atan2(Math.sin(target.heading - from.heading), Math.cos(target.heading - from.heading));
     this.fly = { from, to: target, t: 0, dur: Math.max(0.01, seconds) };
     this.vel.set(0, 0);
+  }
+
+  /** Follows a moving thing: the camera glides after it and settles at dist from the surface. */
+  follow(target: () => THREE.Vector3 | null, dist = 45): void {
+    this.fly = null;
+    this.followFn = target;
+    this.followDist = dist;
+    this.vel.set(0, 0);
+  }
+
+  get following(): boolean {
+    return this.followFn !== null;
+  }
+
+  stopFollow(): void {
+    if (!this.followFn) return;
+    this.followFn = null;
+    this.onFollowEnd?.();
+  }
+
+  private followStep(dt: number): void {
+    const p = this.followFn ? this.followFn() : null;
+    if (!p) {
+      this.stopFollow();
+      return;
+    }
+    const next = tmpB.copy(p).normalize();
+    const old = this.dir.clone();
+    this.dir.lerp(next, 1 - Math.exp(-dt * 5)).normalize();
+    this.carry(old, this.dir);
+    if (this.followDist > 0) this.dist += (this.followDist - this.dist) * (1 - Math.exp(-dt * 1.5));
   }
 
   private cancelFly(): void {
@@ -194,6 +230,7 @@ export class GlobeControls {
     }
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     this.vel.set(0, 0);
+    this.stopFollow();
     this.cancelFly();
     if (this.pointers.size === 2) this.resetPinch();
   }
@@ -258,6 +295,7 @@ export class GlobeControls {
 
   private wheel(e: WheelEvent): void {
     e.preventDefault();
+    this.stopFollow();
     this.cancelFly();
     this.dist = THREE.MathUtils.clamp(this.dist * Math.exp(THREE.MathUtils.clamp(e.deltaY, -300, 300) * 0.0011), MIN_DIST, MAX_DIST);
   }
@@ -291,6 +329,7 @@ export class GlobeControls {
       if (this.keys.has('e')) this.turn(-dt * 1.2);
       if (this.keys.has('+') || this.keys.has('=')) this.dist = Math.max(MIN_DIST, this.dist * Math.exp(-dt * 1.4));
       if (this.keys.has('-') || this.keys.has('_')) this.dist = Math.min(MAX_DIST, this.dist * Math.exp(dt * 1.4));
+      if (this.followFn && this.pointers.size === 0) this.followStep(dt);
       if (this.pointers.size === 0 && this.inertia && this.vel.lengthSq() > 0.01) {
         // Glide scaled to frame time, so a slow frame cannot throw the globe.
         this.panBy(this.vel.x * Math.min(dt * 60, 2), this.vel.y * Math.min(dt * 60, 2));

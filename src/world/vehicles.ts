@@ -1,3 +1,4 @@
+import type { Material } from 'three';
 import { M, Prefab, glowMat } from './kit';
 
 const DARK = 0x23262d;
@@ -80,3 +81,27 @@ export function deliveryTruck(): Prefab {
 }
 
 export { wheel };
+
+const HEAD = (): Material => M(0xfff1c0);
+const TAIL = (): Material => M(0xff2a1a);
+
+/** Head and tail lamps for the delivery truck, in the truck's own frame (forward is +z). */
+export function deliveryTruckLights(): Prefab {
+  const p = new Prefab();
+  for (const x of [-0.9, 0.9]) p.box(0.45, 0.22, 0.1, HEAD(), x, 1.0, 3.56).box(0.4, 0.25, 0.1, TAIL(), x * 1.2, 1.0, -3.95);
+  return p;
+}
+
+/** Head and tail lamps for the mine's dump truck. */
+export function dumpTruckLights(): Prefab {
+  const p = new Prefab();
+  for (const x of [-1.1, 1.1]) p.box(0.5, 0.3, 0.12, HEAD(), x, 1.8, 4.72).box(0.5, 0.3, 0.12, TAIL(), x * 1.6, 1.7, -4.24);
+  return p;
+}
+
+/** Head and tail lamps for a hover car. */
+export function hoverCarLights(): Prefab {
+  const p = new Prefab();
+  for (const x of [-0.6, 0.6]) p.box(0.3, 0.16, 0.1, HEAD(), x, 0.62, 2.04).box(0.3, 0.14, 0.1, TAIL(), x, 0.6, -2.04);
+  return p;
+}

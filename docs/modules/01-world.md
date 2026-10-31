@@ -43,5 +43,6 @@ A rounded planet, **Kepler-22b**, that holds every district, always present and 
 - New scenery: see 17.
 
 ## Known gaps
-- Power fields are mostly decorative (panels, pylons); no moving parts yet.
+- Power Fields (`world/power/Power.ts`) are built: 3 rows of solar panels, 7 turning wind turbines, 8 battery containers, a substation, 4 pylons and lamps (it was an empty lot before). No grains work there yet.
+- Long straight prefabs must be bent slabs, not boxes: a flat 90-unit box floats up to 6 units above the curved ground at its ends.
 - Poles are ice-coloured and sparse; mountain and lake placement is purely noise-based.
